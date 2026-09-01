@@ -6,7 +6,7 @@ CONFIG_FILE = os.path.join(os.environ.get("XDG_CONFIG_HOME", os.path.join(HOME, 
 DEFAULT_KEYBINDS = {
     "parent": "h", "open": "l", "moveDown": "j", "moveUp": "k",
     "select": "Space", "copy": "Ctrl+C", "cut": "Ctrl+X", "paste": "Ctrl+V",
-    "localSend": "Ctrl+Shift+L", "compress": "C", "uncompress": "U", "clearSelection": "Escape"
+    "localSend": "Ctrl+Shift+L", "compress": "C", "uncompress": "U", "rename": "r", "quickPath": "t", "clearSelection": "Escape"
 }
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg", ".avif", ".ico"}
 PDF_EXTENSIONS = {".pdf"}
@@ -26,7 +26,7 @@ def read_config():
         for key in merged:
             if isinstance(keybinds.get(key), str) and keybinds[key].strip(): merged[key] = keybinds[key].strip()
     os.makedirs(os.path.dirname(CONFIG_FILE), exist_ok=True, mode=0o700)
-    if not os.path.exists(CONFIG_FILE):
+    if not os.path.exists(CONFIG_FILE) or not isinstance(keybinds, dict) or any(key not in keybinds for key in merged):
         with open(CONFIG_FILE, "w", encoding="utf-8") as config_file: json.dump({"keybinds": merged}, config_file, indent=2); config_file.write("\n")
     return {"keybinds": merged, "path": CONFIG_FILE}
 
@@ -133,7 +133,9 @@ def main(req):
     if op == "compress":
         paths = [clean(value) for value in req.get("paths", [])]
         if not paths: return {"ok": False, "error": "Select at least one item to compress."}
-        destination = unique_path(os.path.join(clean(req.get("destination")), "Archive.zip"))
+        archive_name = os.path.basename(str(req.get("name", "archive.zip")).strip()) or "archive.zip"
+        if not archive_name.lower().endswith(".zip"): archive_name += ".zip"
+        destination = unique_path(os.path.join(clean(req.get("destination")), archive_name))
         with zipfile.ZipFile(destination, "w", zipfile.ZIP_DEFLATED) as archive:
             for path in paths:
                 if not os.path.exists(path): continue

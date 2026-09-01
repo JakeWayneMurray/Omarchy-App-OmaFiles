@@ -22,6 +22,8 @@ automatically follows the current theme.
   to clear selection; `Ctrl+C`/`Ctrl+X`/`Ctrl+V` operate on all selected items
 - `C` compresses selected items to a ZIP archive and `U` uncompresses ZIP/tar archives
 - `l` or `→` on a ZIP/tar archive extracts it directly; on folders they open the folder
+- `r` renames the current item, `t` focuses and selects the location field, and `C` asks for an archive filename (default `archive.zip`)
+- Right-click any item for the full action menu
 
 ## Run from a checkout
 
@@ -82,6 +84,8 @@ The default configuration is:
     "localSend": "Ctrl+Shift+L",
     "compress": "C",
     "uncompress": "U",
+    "rename": "r",
+    "quickPath": "t",
     "clearSelection": "Escape"
   }
 }

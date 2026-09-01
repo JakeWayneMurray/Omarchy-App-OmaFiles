@@ -45,6 +45,8 @@ FloatingWindow {
     property string keyLocalSend: "Ctrl+Shift+L"
     property string keyCompress: "C"
     property string keyUncompress: "U"
+    property string keyRename: "r"
+    property string keyQuickPath: "t"
     property string keyClearSelection: "Escape"
 
     function send(payload) { helper.write(JSON.stringify(payload) + "\n") }
@@ -96,9 +98,12 @@ FloatingWindow {
         busyPaths = clipboardPaths
         send({op:"paste", sources:clipboardPaths, destination:currentPath, mode:clipboardMode})
     }
-    function compressSelected() { var items = selectionOrCurrent(); if (!items.length) return; busyPaths = items.map(function(item) { return item.path }); send({op:"compress", paths:busyPaths, destination:currentPath}) }
+    function compressSelected() { if (selectionOrCurrent().length) { archiveName.text = "archive.zip"; compressDialog.open() } }
+    function doCompress() { var items = selectionOrCurrent(); if (!items.length) return; busyPaths = items.map(function(item) { return item.path }); send({op:"compress", paths:busyPaths, destination:currentPath, name:archiveName.text.trim() || "archive.zip"}) }
     function uncompressSelected() { var items = selectionOrCurrent(); if (!items.length) return; busyPaths = items.map(function(item) { return item.path }); send({op:"uncompress", paths:busyPaths}) }
     function sendToLocalSend() { var items = selectionOrCurrent(); if (!items.length) { notify("Select a file or folder to send"); return }; busyPaths = items.map(function(item) { return item.path }); send({op:"localsend", paths:busyPaths}) }
+    function renameSelected() { if (selected) { renameName.text = selected.name; renameDialog.open() } }
+    function prepareContext(item, index) { list.currentIndex = index; if (!isChosen(item.path)) { selectedItems = [item]; selectionAnchor = index }; select(item); contextMenu.popup() }
     function activateCurrent() {
         if (list.currentIndex < 0 || list.currentIndex >= entries.length) return
         var item = entries[list.currentIndex]
@@ -132,7 +137,7 @@ FloatingWindow {
         var keys = data && data.keybinds ? data.keybinds : {}
         keyParent = keys.parent || keyParent; keyOpen = keys.open || keyOpen; keyMoveDown = keys.moveDown || keyMoveDown; keyMoveUp = keys.moveUp || keyMoveUp
         keySelect = keys.select || keySelect; keyCopy = keys.copy || keyCopy; keyCut = keys.cut || keyCut; keyPaste = keys.paste || keyPaste
-        keyLocalSend = keys.localSend || keyLocalSend; keyCompress = keys.compress || keyCompress; keyUncompress = keys.uncompress || keyUncompress; keyClearSelection = keys.clearSelection || keyClearSelection
+        keyLocalSend = keys.localSend || keyLocalSend; keyCompress = keys.compress || keyCompress; keyUncompress = keys.uncompress || keyUncompress; keyRename = keys.rename || keyRename; keyQuickPath = keys.quickPath || keyQuickPath; keyClearSelection = keys.clearSelection || keyClearSelection
     }
     function handle(data) {
         if (data.config !== undefined) { applyConfig(data.config); refresh() }
@@ -152,6 +157,7 @@ FloatingWindow {
     Shortcut { sequence: root.keyCut; enabled: !pathField.activeFocus && !searchField.activeFocus; onActivated: root.copySelected("cut") }
     Shortcut { sequence: root.keyPaste; enabled: !pathField.activeFocus && !searchField.activeFocus; onActivated: root.pasteClipboard() }
     Shortcut { sequence: root.keyLocalSend; enabled: !pathField.activeFocus && !searchField.activeFocus; onActivated: root.sendToLocalSend() }
+    Shortcut { sequence: root.keyQuickPath; enabled: !pathField.activeFocus && !searchField.activeFocus; onActivated: { pathField.forceActiveFocus(); pathField.selectAll() } }
     Shortcut { sequence: "Delete"; onActivated: if (selected) confirmTrash.open() }
     Shortcut { sequence: root.keyClearSelection; onActivated: { if (selectedItems.length) root.clearSelection(); else if (searchField.activeFocus) { searchText = ""; searchField.clearFocus(); refresh() } } }
 
@@ -188,6 +194,7 @@ FloatingWindow {
                         else if (root.keyMatches(event, root.keySelect) || event.key === Qt.Key_Space || event.key === Qt.Key_S) { root.toggleCurrent(); event.accepted = true }
                         else if (root.keyMatches(event, root.keyCompress)) { root.compressSelected(); event.accepted = true }
                         else if (root.keyMatches(event, root.keyUncompress)) { root.uncompressSelected(); event.accepted = true }
+                        else if (root.keyMatches(event, root.keyRename)) { root.renameSelected(); event.accepted = true }
                         else if (event.key === Qt.Key_Delete && currentIndex >= 0) { root.select(root.entries[currentIndex]); confirmTrash.open(); event.accepted = true }
                     }
                     delegate: Rectangle { required property var modelData; required property int index; width: list.width; height: root.viewMode === 2 ? Style.space(92) : Style.space(48); radius: Style.radius.small; color: root.isChosen(modelData.path) ? Qt.alpha(Color.accent, 0.22) : (root.selected && root.selected.path === modelData.path ? Qt.alpha(Color.foreground, 0.08) : "transparent"); opacity: root.clipboardMode === "cut" && root.clipboardPaths.indexOf(modelData.path) >= 0 ? 0.5 : 1
@@ -198,7 +205,11 @@ FloatingWindow {
                         }
                         MouseArea {
                             anchors.fill: parent
-                            onClicked: { list.currentIndex = index; root.select(modelData) }
+                            acceptedButtons: Qt.LeftButton | Qt.RightButton
+                            onClicked: {
+                                if (mouse.button === Qt.RightButton) root.prepareContext(modelData, index)
+                                else { list.currentIndex = index; root.select(modelData) }
+                            }
                             onDoubleClicked: root.enter(modelData)
                         }
                     }
@@ -239,5 +250,23 @@ FloatingWindow {
     Dialog { id: confirmTrash; title: "Move to Trash?"; standardButtons: Dialog.Ok | Dialog.Cancel; modal: true; anchors.centerIn: Overlay.overlay
         Text { text: root.selected ? "Move “" + root.selected.name + "” to Trash?" : "Move this item to Trash?"; color: Color.foreground }
         onAccepted: if (root.selected) root.action("trash")
+    }
+    Dialog { id: compressDialog; title: "Compress selection"; standardButtons: Dialog.Ok | Dialog.Cancel; modal: true; anchors.centerIn: Overlay.overlay
+        TextField { id: archiveName; width: Style.space(320); text: "archive.zip"; placeholderText: "Archive filename"; onAccepted: compressDialog.accept() }
+        onOpened: { archiveName.forceActiveFocus(); archiveName.selectAll() }
+        onAccepted: root.doCompress()
+    }
+    Menu { id: contextMenu
+        MenuItem { text: "Open"; enabled: !!root.selected; onTriggered: root.activateCurrent() }
+        MenuItem { text: "Rename"; enabled: !!root.selected; onTriggered: root.renameSelected() }
+        MenuSeparator {}
+        MenuItem { text: "Copy"; enabled: root.selectionOrCurrent().length > 0; onTriggered: root.copySelected("copy") }
+        MenuItem { text: "Cut"; enabled: root.selectionOrCurrent().length > 0; onTriggered: root.copySelected("cut") }
+        MenuItem { text: "Paste"; enabled: root.clipboardPaths.length > 0; onTriggered: root.pasteClipboard() }
+        MenuItem { text: "Send with LocalSend"; enabled: root.selectionOrCurrent().length > 0; onTriggered: root.sendToLocalSend() }
+        MenuSeparator {}
+        MenuItem { text: "Compress…"; enabled: root.selectionOrCurrent().length > 0; onTriggered: root.compressSelected() }
+        MenuItem { text: "Uncompress"; enabled: root.selectionOrCurrent().length > 0; onTriggered: root.uncompressSelected() }
+        MenuItem { text: "Move to Trash"; enabled: !!root.selected; onTriggered: confirmTrash.open() }
     }
 }
