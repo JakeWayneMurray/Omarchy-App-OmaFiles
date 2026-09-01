@@ -13,12 +13,12 @@ def item(path):
         is_dir = os.path.isdir(path)
         return {"name": os.path.basename(path) or path, "path": path,
                 "directory": is_dir, "size": 0 if is_dir else st.st_size,
-                "modified": st.st_mtime, "hidden": os.path.basename(path).startswith("."),
+                "modified": st.st_mtime, "created": getattr(st, "st_birthtime", st.st_ctime), "hidden": os.path.basename(path).startswith("."),
                 "image": (not is_dir and os.path.splitext(path)[1].lower() in IMAGE_EXTENSIONS)}
     except OSError:
         return None
 
-def listing(path, show_hidden=False, query=""):
+def listing(path, show_hidden=False, query="", sort_key="name", ascending=True):
     path = clean(path)
     query = query.lower().strip()
     try: names = sorted(os.listdir(path), key=lambda n: (not os.path.isdir(os.path.join(path, n)), n.lower()))
@@ -29,6 +29,12 @@ def listing(path, show_hidden=False, query=""):
         if query and query not in name.lower(): continue
         value = item(os.path.join(path, name))
         if value: out.append(value)
+    def sort_value(value):
+        if sort_key == "size": return value["size"]
+        if sort_key == "modified": return value["modified"]
+        if sort_key == "created": return value["created"]
+        return value["name"].lower()
+    out.sort(key=lambda value: (not value["directory"], sort_value(value)), reverse=not ascending)
     return {"ok": True, "path": path, "items": out}
 
 def response(value):
@@ -36,7 +42,7 @@ def response(value):
 
 def main(req):
     op = req.get("op")
-    if op == "list": return listing(req.get("path"), req.get("hidden", False), req.get("query", ""))
+    if op == "list": return listing(req.get("path"), req.get("hidden", False), req.get("query", ""), req.get("sort", "name"), req.get("ascending", True))
     if op == "preview":
         path = clean(req.get("path"));
         if os.path.isdir(path): return {"ok": True, "text": "Folder\n\n" + path, "image": False}

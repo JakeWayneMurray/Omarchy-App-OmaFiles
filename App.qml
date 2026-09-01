@@ -26,10 +26,12 @@ FloatingWindow {
     property string clipboardPath: ""
     property string clipboardMode: ""
     property string busyPath: ""
+    property string sortKey: "name"
+    property bool sortAscending: true
     property string helperPath: Qt.resolvedUrl("quatro_files.py").toString().replace("file://", "")
 
     function send(payload) { helper.write(JSON.stringify(payload) + "\n"); helper.flush() }
-    function refresh() { send({op:"list", path:currentPath, hidden:showHidden, query:searchText}) }
+    function refresh() { send({op:"list", path:currentPath, hidden:showHidden, query:searchText, sort:sortKey, ascending:sortAscending}) }
     function select(item) { selected = item; previewIsImage = !!(item && item.image); previewText = item && item.image ? "" : "Select a file to preview it."; if (item) send({op:"preview", path:item.path}) }
     function enter(item) { if (item.directory) { currentPath = item.path; searchText = ""; selected = null; refresh() } else send({op:"open", path:item.path}) }
     function up() { var p = currentPath; if (p !== "/") { currentPath = p.substring(0, p.lastIndexOf("/")) || "/"; refresh() } }
@@ -45,6 +47,21 @@ FloatingWindow {
         busyPath = clipboardPath
         send({op:"paste", source:clipboardPath, destination:currentPath, mode:clipboardMode})
     }
+    function nextSort() {
+        var keys = ["name", "size", "modified", "created"]
+        var index = keys.indexOf(sortKey)
+        sortKey = keys[(index + 1) % keys.length]
+        sortAscending = true
+        refresh()
+    }
+    function sortLabel() { return {name:"Name", size:"Size", modified:"Modified", created:"Created"}[sortKey] }
+    function formatBytes(bytes) {
+        if (bytes < 1024) return bytes + " B"
+        if (bytes < 1048576) return (bytes / 1024).toFixed(1) + " KB"
+        if (bytes < 1073741824) return (bytes / 1048576).toFixed(1) + " MB"
+        return (bytes / 1073741824).toFixed(1) + " GB"
+    }
+    function formatDate(seconds) { return Qt.formatDateTime(new Date(Number(seconds) * 1000), "yyyy-MM-dd HH:mm") }
 
     Process {
         id: helper
@@ -93,19 +110,20 @@ FloatingWindow {
         RowLayout { Layout.fillWidth: true; Layout.fillHeight: true; spacing: Style.space(14)
             Rectangle { Layout.fillWidth: true; Layout.fillHeight: true; color: Qt.alpha(Color.foreground, 0.035); radius: Style.radius.normal
                 ListView { id: list; anchors.fill: parent; anchors.margins: Style.space(8); clip: true; model: root.entries; focus: true
+                    onCurrentIndexChanged: if (currentIndex >= 0 && currentIndex < root.entries.length) root.select(root.entries[currentIndex])
                     Keys.onPressed: function(event) {
                         if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) { if (currentIndex >= 0) root.enter(root.entries[currentIndex]); event.accepted = true }
                         else if (event.key === Qt.Key_Backspace) { root.up(); event.accepted = true }
-                        else if (event.key === Qt.Key_Left || event.key === Qt.Key_H) { root.up(); event.accepted = true }
-                        else if (event.key === Qt.Key_Right || event.key === Qt.Key_L) { if (currentIndex >= 0) root.enter(root.entries[currentIndex]); event.accepted = true }
-                        else if (event.key === Qt.Key_Down || event.key === Qt.Key_J) { currentIndex = Math.min(count - 1, currentIndex + 1); root.select(root.entries[currentIndex]); event.accepted = true }
-                        else if (event.key === Qt.Key_Up || event.key === Qt.Key_K) { currentIndex = Math.max(0, currentIndex - 1); root.select(root.entries[currentIndex]); event.accepted = true }
+                        else if (event.key === Qt.Key_H) { root.up(); event.accepted = true }
+                        else if (event.key === Qt.Key_L) { if (currentIndex >= 0) root.enter(root.entries[currentIndex]); event.accepted = true }
+                        else if (event.key === Qt.Key_Down || event.key === Qt.Key_J) { currentIndex = Math.min(count - 1, currentIndex + 1); event.accepted = true }
+                        else if (event.key === Qt.Key_Up || event.key === Qt.Key_K) { currentIndex = Math.max(0, currentIndex - 1); event.accepted = true }
                         else if (event.key === Qt.Key_Delete && currentIndex >= 0) { root.select(root.entries[currentIndex]); confirmTrash.open(); event.accepted = true }
                     }
                     delegate: Rectangle { required property var modelData; required property int index; width: list.width; height: root.viewMode === 2 ? Style.space(92) : Style.space(48); radius: Style.radius.small; color: root.selected && root.selected.path === modelData.path ? Qt.alpha(Color.accent, 0.18) : "transparent"; opacity: root.clipboardMode === "cut" && root.clipboardPath === modelData.path ? 0.5 : 1
                         Row { anchors.fill: parent; anchors.margins: Style.space(10); spacing: Style.space(12)
                             Text { width: Style.space(28); text: root.busyPath === modelData.path ? "…" : (root.clipboardPath === modelData.path ? (root.clipboardMode === "cut" ? "✂" : "⧉") : (modelData.directory ? "□" : "·")); color: root.busyPath === modelData.path ? Color.accent : (modelData.directory ? Color.accent : Color.muted); font.pixelSize: Style.font.title; horizontalAlignment: Text.AlignHCenter }
-                            Column { width: parent.width - Style.space(150); anchors.verticalCenter: parent.verticalCenter; Text { text: modelData.name; color: Color.foreground; font.family: Style.font.family; font.pixelSize: Style.font.body; elide: Text.ElideRight } Text { text: modelData.directory ? "Folder" : (modelData.size + " bytes"); color: Color.muted; font.pixelSize: Style.font.caption } }
+                            Column { width: parent.width - Style.space(210); anchors.verticalCenter: parent.verticalCenter; Text { text: modelData.name; color: Color.foreground; font.family: Style.font.family; font.pixelSize: Style.font.body; elide: Text.ElideRight } Text { text: modelData.directory ? "Folder" : (root.formatBytes(modelData.size) + " · modified " + root.formatDate(modelData.modified)); color: Color.muted; font.pixelSize: Style.font.caption; elide: Text.ElideRight } }
                             Text { anchors.verticalCenter: parent.verticalCenter; text: modelData.directory ? "" : "↗"; color: Color.muted }
                         }
                         MouseArea {
@@ -120,6 +138,7 @@ FloatingWindow {
             Rectangle { Layout.preferredWidth: Style.space(320); Layout.fillHeight: true; color: Qt.alpha(Color.foreground, 0.035); radius: Style.radius.normal
                 Column { anchors.fill: parent; anchors.margins: Style.space(16); spacing: Style.space(10)
                     Text { text: root.selected ? root.selected.name : "Preview"; color: Color.foreground; font.pixelSize: Style.font.body; font.bold: true; elide: Text.ElideRight; width: parent.width }
+                    Text { visible: !!root.selected; text: root.selected ? (root.selected.directory ? "Folder" : root.formatBytes(root.selected.size)) + "\nModified  " + root.formatDate(root.selected.modified) + "\nCreated   " + root.formatDate(root.selected.created) : ""; color: Color.muted; font.pixelSize: Style.font.caption; lineHeight: 1.15 }
                     Rectangle { width: parent.width; height: 1; color: Qt.alpha(Color.foreground, 0.12) }
                     Image { visible: root.previewIsImage && !!root.selected; width: parent.width; height: parent.height - Style.space(88); source: root.selected ? "file://" + root.selected.path : ""; fillMode: Image.PreserveAspectFit; asynchronous: true; cache: false }
                     ScrollView { visible: !root.previewIsImage; width: parent.width; height: parent.height - Style.space(88); Text { width: parent.width; text: root.previewText; color: Color.muted; font.family: "monospace"; font.pixelSize: Style.font.caption; wrapMode: Text.Wrap; textFormat: Text.PlainText } }
@@ -129,6 +148,8 @@ FloatingWindow {
         }
         RowLayout { Layout.fillWidth: true
             Text { Layout.fillWidth: true; text: root.notice || (root.entries.length + " items · " + root.currentPath); color: root.notice ? Color.accent : Color.muted; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
+            Button { text: "Sort: " + root.sortLabel() + (root.sortAscending ? " ↑" : " ↓"); bordered: true; onClicked: root.nextSort() }
+            Button { text: "⇅"; bordered: true; onClicked: { root.sortAscending = !root.sortAscending; root.refresh() } }
             Button { text: "List"; bordered: root.viewMode === 0; onClicked: root.viewMode = 0 }
             Button { text: "Compact"; bordered: root.viewMode === 1; onClicked: root.viewMode = 1 }
             Button { text: "Grid"; bordered: root.viewMode === 2; onClicked: root.viewMode = 2 }

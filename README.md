@@ -10,6 +10,8 @@ automatically follows the current theme.
 - Search the current folder
 - Hidden-file toggle
 - List, compact, and grid views
+- File size, modified time, and creation/change time metadata
+- Sort by name, size, modified time, or creation/change time in either direction
 - Text preview for common source, config, markdown, and log files
 - New folder, rename, move to Trash, and open with the default application
 - Keyboard navigation: arrows, Enter, Backspace, `/` search, `Ctrl+L` location,
