@@ -103,6 +103,7 @@ FloatingWindow {
     function doCompress() { var items = selectionOrCurrent(); if (!items.length) return; busyPaths = items.map(function(item) { return item.path }); send({op:"compress", paths:busyPaths, destination:currentPath, name:archiveName.text.trim() || "archive.zip"}) }
     function uncompressSelected() { var items = selectionOrCurrent(); if (!items.length) return; busyPaths = items.map(function(item) { return item.path }); send({op:"uncompress", paths:busyPaths}) }
     function sendToLocalSend() { var items = selectionOrCurrent(); if (!items.length) { notify("Select a file or folder to send"); return }; busyPaths = items.map(function(item) { return item.path }); send({op:"localsend", paths:busyPaths}) }
+    function trashSelected() { var items = selectionOrCurrent(); if (!items.length) return; busyPaths = items.map(function(item) { return item.path }); send({op:"trash", paths:busyPaths}) }
     function renameSelected() { if (selected) { renameName.text = selected.name; renameDialog.open() } }
     function prepareContext(item, index) { list.currentIndex = index; if (!isChosen(item.path)) { selectedItems = [item]; selectionAnchor = index }; select(item); contextMenu.popup() }
     function activateCurrent() {
@@ -145,7 +146,7 @@ FloatingWindow {
         else if (data.completions !== undefined) { if (data.completions.length === 1) { pathField.text = data.completions[0]; pathField.cursorPosition = pathField.text.length } else if (data.common && data.common.length > pathField.text.length) { pathField.text = data.common; pathField.cursorPosition = pathField.text.length } if (data.completions.length > 1) notify(data.completions.length + " matches") }
         else if (data.items !== undefined) { entries = data.items; if (!data.ok) notify(data.error) }
         else if (data.text !== undefined) { previewText = data.text; previewIsImage = !!data.image; previewImageSource = data.imagePath ? "file://" + data.imagePath : previewImageSource }
-        else if (data.ok) { busyPath = ""; busyPaths = []; if (clipboardMode === "cut" && data.moved) { clipboardPath = ""; clipboardPaths = []; clipboardMode = "" }; notify("Done"); refresh() } else { busyPath = ""; busyPaths = []; notify(data.error || "Could not complete action") }
+        else if (data.ok) { busyPath = ""; busyPaths = []; if (data.deleted) { selectedItems = []; selectionAnchor = -1 }; if (clipboardMode === "cut" && data.moved) { clipboardPath = ""; clipboardPaths = []; clipboardMode = "" }; notify("Done"); refresh() } else { busyPath = ""; busyPaths = []; notify(data.error || "Could not complete action") }
     }
     Timer { id: noticeTimer; interval: 2600 }
     Timer { id: startupRefresh; interval: 250; repeat: false; running: true; onTriggered: refresh() }
@@ -160,7 +161,7 @@ FloatingWindow {
     Shortcut { sequence: root.keyPaste; enabled: !pathField.activeFocus && !searchField.activeFocus; onActivated: root.pasteClipboard() }
     Shortcut { sequence: root.keyLocalSend; enabled: !pathField.activeFocus && !searchField.activeFocus; onActivated: root.sendToLocalSend() }
     Shortcut { sequence: root.keyQuickPath; enabled: !pathField.activeFocus && !searchField.activeFocus; onActivated: { pathField.forceActiveFocus(); pathField.selectAll() } }
-    Shortcut { sequence: "Delete"; onActivated: if (selected) confirmTrash.open() }
+    Shortcut { sequence: "Delete"; onActivated: if (root.selectionOrCurrent().length) confirmTrash.open() }
     Shortcut { sequence: root.keyClearSelection; onActivated: { if (pathField.activeFocus || searchField.activeFocus) { if (searchField.activeFocus) { searchText = ""; searchField.clear() }; pathField.clearFocus(); searchField.clearFocus(); list.forceActiveFocus() } else if (selectedItems.length) root.clearSelection() } }
 
     ColumnLayout { anchors.fill: parent; anchors.margins: Style.space(20); spacing: Style.space(12)
@@ -252,9 +253,9 @@ FloatingWindow {
         onAccepted: { if (renameName.text.trim() && root.selected) root.action("rename", {name:renameName.text.trim()}); }
     }
     Dialog { id: confirmTrash; title: "Move to Trash?"; modal: true; focus: true; anchors.centerIn: Overlay.overlay; width: Style.space(420); padding: Style.space(16); Keys.onPressed: function(event) { if (event.key === Qt.Key_Escape) { confirmTrash.reject(); event.accepted = true } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) { confirmTrash.accept(); event.accepted = true } } background: Rectangle { color: Color.background; border.color: Qt.alpha(Color.accent, 0.55); border.width: 1; radius: Style.space(8) } header: Text { leftPadding: Style.space(16); rightPadding: Style.space(16); topPadding: Style.space(14); text: confirmTrash.title; color: Color.foreground; font.family: Style.font.family; font.pixelSize: Style.font.body; font.bold: true }
-        Text { text: root.selected ? "Move “" + root.selected.name + "” to Trash?" : "Move this item to Trash?"; color: Color.foreground }
+        Text { width: parent.width; text: root.selectionOrCurrent().length > 1 ? "Move " + root.selectionOrCurrent().length + " items to Trash?" : (root.selected ? "Move “" + root.selected.name + "” to Trash?" : "Move this item to Trash?"); color: Color.foreground; wrapMode: Text.WordWrap }
         footer: Row { width: parent.width; spacing: Style.space(8); layoutDirection: Qt.RightToLeft; Button { text: "Move to Trash"; bordered: true; onClicked: confirmTrash.accept() } Button { text: "Cancel"; bordered: true; onClicked: confirmTrash.reject() } }
-        onAccepted: if (root.selected) root.action("trash")
+        onAccepted: root.trashSelected()
     }
     Dialog { id: compressDialog; title: "Compress selection"; modal: true; focus: true; anchors.centerIn: Overlay.overlay; width: Style.space(420); padding: Style.space(16); Keys.onPressed: function(event) { if (event.key === Qt.Key_Escape) { compressDialog.reject(); event.accepted = true } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) { compressDialog.accept(); event.accepted = true } } background: Rectangle { color: Color.background; border.color: Qt.alpha(Color.accent, 0.55); border.width: 1; radius: Style.space(8) } header: Text { leftPadding: Style.space(16); rightPadding: Style.space(16); topPadding: Style.space(14); text: compressDialog.title; color: Color.foreground; font.family: Style.font.family; font.pixelSize: Style.font.body; font.bold: true }
         TextField { id: archiveName; width: Style.space(320); text: "archive.zip"; placeholderText: "Archive filename"; onAccepted: compressDialog.accept() }
@@ -273,6 +274,6 @@ FloatingWindow {
         MenuSeparator {}
         MenuItem { text: "Compress…"; enabled: root.selectionOrCurrent().length > 0; onTriggered: root.compressSelected() }
         MenuItem { text: "Uncompress"; enabled: root.selectionOrCurrent().length > 0; onTriggered: root.uncompressSelected() }
-        MenuItem { text: "Move to Trash"; enabled: !!root.selected; onTriggered: confirmTrash.open() }
+        MenuItem { text: "Move to Trash"; enabled: root.selectionOrCurrent().length > 0; onTriggered: confirmTrash.open() }
     }
 }

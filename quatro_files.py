@@ -129,10 +129,14 @@ def main(req):
     if op == "rename":
         old = clean(req.get("path")); new = os.path.join(os.path.dirname(old), req.get("name", "")); os.rename(old, new); return {"ok": True}
     if op == "trash":
-        path = clean(req.get("path")); trash = os.path.join(os.environ.get("XDG_DATA_HOME", os.path.join(HOME, ".local/share")), "Trash/files"); os.makedirs(trash, exist_ok=True)
-        target = os.path.join(trash, os.path.basename(path));
-        if os.path.exists(target): target += "." + next(tempfile._get_candidate_names())
-        shutil.move(path, target); return {"ok": True}
+        paths = [clean(value) for value in req.get("paths", [req.get("path")]) if value]
+        trash = os.path.join(os.environ.get("XDG_DATA_HOME", os.path.join(HOME, ".local/share")), "Trash/files"); os.makedirs(trash, exist_ok=True)
+        for path in paths:
+            if not os.path.exists(path): continue
+            target = os.path.join(trash, os.path.basename(path))
+            if os.path.exists(target): target += "." + next(tempfile._get_candidate_names())
+            shutil.move(path, target)
+        return {"ok": True, "deleted": len(paths)}
     if op == "paste":
         sources = [clean(value) for value in req.get("sources", [req.get("source")]) if value]
         destination = clean(req.get("destination")); mode = req.get("mode", "copy")
