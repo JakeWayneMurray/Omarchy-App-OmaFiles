@@ -260,7 +260,7 @@ FloatingWindow {
     }
     Dialog { id: confirmTrash; title: "Move to Trash?"; modal: true; focus: true; anchors.centerIn: Overlay.overlay; width: Style.space(420); padding: Style.space(20); background: Rectangle { color: Color.background; border.color: Qt.alpha(Color.accent, 0.55); border.width: 1; radius: Style.space(8) } header: Text { leftPadding: Style.space(20); rightPadding: Style.space(20); topPadding: Style.space(16); bottomPadding: Style.space(4); text: confirmTrash.title; color: Color.foreground; font.family: Style.font.family; font.pixelSize: Style.font.body; font.bold: true }
         Text { width: parent.width; height: Style.space(34); verticalAlignment: Text.AlignVCenter; text: root.selectionOrCurrent().length > 1 ? "Move " + root.selectionOrCurrent().length + " items to Trash?" : (root.selected ? "Move “" + root.selected.name + "” to Trash?" : "Move this item to Trash?"); color: Color.foreground; wrapMode: Text.WordWrap }
-        footer: DialogButtonBox { id: confirmTrashButtons; width: parent.width; height: Style.space(48); padding: Style.space(8); alignment: Qt.AlignRight; standardButtons: DialogButtonBox.Ok | DialogButtonBox.Cancel
+        footer: DialogButtonBox { id: confirmTrashButtons; width: parent.width; height: Style.space(48); padding: Style.space(8); alignment: Qt.AlignRight; standardButtons: DialogButtonBox.Ok | DialogButtonBox.Cancel; background: Rectangle { color: "transparent" }
             onAccepted: confirmTrash.accept()
             onRejected: confirmTrash.reject()
         }
