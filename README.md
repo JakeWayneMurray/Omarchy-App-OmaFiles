@@ -22,8 +22,31 @@ sudo pacman -S --needed quickshell python
 ./run.sh
 ```
 
-## Install
+## Install as a normal app
 
-The included desktop entry is packaged as `omarchy-app-omafiles`. After
-installation, launch **OmaFiles** from the Omarchy application launcher or
-run `omafiles`. `./run.sh` remains available for development checkouts.
+On Omarchy/Arch Linux:
+
+```bash
+sudo pacman -S --needed base-devel git quickshell python
+git clone git@github.com:JakeWayneMurray/Omarchy-App-OmaFiles.git
+cd Omarchy-App-OmaFiles
+makepkg -si
+```
+
+After installation, launch **OmaFiles** from the Omarchy application launcher
+or run:
+
+```bash
+omafiles
+```
+
+The package installs the desktop entry, the `omafiles` command, and the
+`Alt+E` Hyprland binding can be added with:
+
+```lua
+o.bind("ALT + E", "OmaFiles", "omafiles")
+```
+
+Save that in `~/.config/hypr/bindings.lua`, then run `hyprctl reload`.
+
+`./run.sh` remains available for development checkouts.
