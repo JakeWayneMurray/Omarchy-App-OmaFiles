@@ -79,6 +79,12 @@ FloatingWindow {
     }
     function compressSelected() { var items = selectionOrCurrent(); if (!items.length) return; busyPaths = items.map(function(item) { return item.path }); send({op:"compress", paths:busyPaths, destination:currentPath}) }
     function uncompressSelected() { var items = selectionOrCurrent(); if (!items.length) return; busyPaths = items.map(function(item) { return item.path }); send({op:"uncompress", paths:busyPaths}) }
+    function activateCurrent() {
+        if (list.currentIndex < 0 || list.currentIndex >= entries.length) return
+        var item = entries[list.currentIndex]
+        if (item.archive) uncompressSelected()
+        else enter(item)
+    }
     function nextSort() {
         var keys = ["name", "size", "modified", "created"]
         var index = keys.indexOf(sortKey)
@@ -147,10 +153,10 @@ FloatingWindow {
                         if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) { if (currentIndex >= 0) root.enter(root.entries[currentIndex]); event.accepted = true }
                         else if (event.key === Qt.Key_Backspace) { root.up(); event.accepted = true }
                         else if (event.key === Qt.Key_H) { if ((event.modifiers & Qt.ShiftModifier) !== 0) root.moveBy(-1, true); else root.up(); event.accepted = true }
-                        else if (event.key === Qt.Key_L) { if ((event.modifiers & Qt.ShiftModifier) !== 0) root.moveBy(1, true); else if (currentIndex >= 0) root.enter(root.entries[currentIndex]); event.accepted = true }
+                        else if (event.key === Qt.Key_L) { if ((event.modifiers & Qt.ShiftModifier) !== 0) root.moveBy(1, true); else root.activateCurrent(); event.accepted = true }
                         else if (event.key === Qt.Key_Down || event.key === Qt.Key_J) { root.moveBy(1, (event.modifiers & Qt.ShiftModifier) !== 0); event.accepted = true }
                         else if (event.key === Qt.Key_Up || event.key === Qt.Key_K) { root.moveBy(-1, (event.modifiers & Qt.ShiftModifier) !== 0); event.accepted = true }
-                        else if (event.key === Qt.Key_Right) { root.moveBy(1, (event.modifiers & Qt.ShiftModifier) !== 0); event.accepted = true }
+                        else if (event.key === Qt.Key_Right) { if ((event.modifiers & Qt.ShiftModifier) !== 0) root.moveBy(1, true); else if (currentIndex >= 0 && (root.entries[currentIndex].directory || root.entries[currentIndex].archive)) root.activateCurrent(); else root.moveBy(1, false); event.accepted = true }
                         else if (event.key === Qt.Key_Left) { root.moveBy(-1, (event.modifiers & Qt.ShiftModifier) !== 0); event.accepted = true }
                         else if (event.key === Qt.Key_Space || event.key === Qt.Key_S) { root.toggleCurrent(); event.accepted = true }
                         else if (event.key === Qt.Key_C) { root.compressSelected(); event.accepted = true }

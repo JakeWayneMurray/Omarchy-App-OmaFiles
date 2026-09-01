@@ -21,6 +21,7 @@ automatically follows the current theme.
 - Multi-select with `Space`/`s`, Shift + arrows or Shift + `hjkl`, and `Escape`
   to clear selection; `Ctrl+C`/`Ctrl+X`/`Ctrl+V` operate on all selected items
 - `C` compresses selected items to a ZIP archive and `U` uncompresses ZIP/tar archives
+- `l` or `→` on a ZIP/tar archive extracts it directly; on folders they open the folder
 
 ## Run from a checkout
 

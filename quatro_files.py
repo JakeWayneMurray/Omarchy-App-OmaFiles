@@ -4,6 +4,7 @@ import hashlib, json, os, shutil, subprocess, sys, tempfile, tarfile, zipfile
 HOME = os.path.expanduser("~")
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg", ".avif", ".ico"}
 PDF_EXTENSIONS = {".pdf"}
+ARCHIVE_SUFFIXES = (".zip", ".tar", ".tar.gz", ".tgz", ".tar.bz2", ".tbz2", ".tar.xz", ".txz")
 
 def clean(path):
     return os.path.realpath(os.path.expanduser(path or HOME))
@@ -16,7 +17,8 @@ def item(path):
                 "directory": is_dir, "size": 0 if is_dir else st.st_size,
                 "modified": st.st_mtime, "created": getattr(st, "st_birthtime", st.st_ctime), "hidden": os.path.basename(path).startswith("."),
                 "image": (not is_dir and os.path.splitext(path)[1].lower() in IMAGE_EXTENSIONS),
-                "pdf": (not is_dir and os.path.splitext(path)[1].lower() in PDF_EXTENSIONS)}
+                "pdf": (not is_dir and os.path.splitext(path)[1].lower() in PDF_EXTENSIONS),
+                "archive": (not is_dir and path.lower().endswith(ARCHIVE_SUFFIXES))}
     except OSError:
         return None
 
