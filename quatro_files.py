@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import hashlib, json, os, shutil, subprocess, sys, tempfile
+import hashlib, json, os, shutil, subprocess, sys, tempfile, tarfile, zipfile
 
 HOME = os.path.expanduser("~")
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg", ".avif", ".ico"}
@@ -65,6 +65,13 @@ def pdf_preview(path):
         text = "PDF preview tools are unavailable: " + str(error)
     return {"ok": True, "text": text or "This PDF has no selectable text.", "image": bool(image_path), "imagePath": image_path}
 
+def unique_path(path):
+    if not os.path.exists(path): return path
+    stem, ext = os.path.splitext(path)
+    number = 2
+    while os.path.exists(stem + " " + str(number) + ext): number += 1
+    return stem + " " + str(number) + ext
+
 def main(req):
     op = req.get("op")
     if op == "list": return listing(req.get("path"), req.get("hidden", False), req.get("query", ""), req.get("sort", "name"), req.get("ascending", True))
@@ -88,18 +95,43 @@ def main(req):
         if os.path.exists(target): target += "." + next(tempfile._get_candidate_names())
         shutil.move(path, target); return {"ok": True}
     if op == "paste":
-        source = clean(req.get("source")); destination = clean(req.get("destination")); mode = req.get("mode", "copy")
-        if not os.path.exists(source): return {"ok": False, "error": "The source item no longer exists."}
-        if os.path.isdir(destination): target = os.path.join(destination, os.path.basename(source))
-        else: target = destination
-        if clean(target) == source or clean(target).startswith(source + os.sep):
-            return {"ok": False, "error": "An item cannot be pasted inside itself."}
-        if os.path.exists(target):
-            stem, ext = os.path.splitext(target); target = stem + " copy" + ext
-        if mode == "cut": shutil.move(source, target)
-        elif os.path.isdir(source): shutil.copytree(source, target)
-        else: shutil.copy2(source, target)
+        sources = [clean(value) for value in req.get("sources", [req.get("source")]) if value]
+        destination = clean(req.get("destination")); mode = req.get("mode", "copy")
+        for source in sources:
+            if not os.path.exists(source): return {"ok": False, "error": "A source item no longer exists."}
+            target = os.path.join(destination, os.path.basename(source))
+            if clean(target) == source or clean(target).startswith(source + os.sep): return {"ok": False, "error": "An item cannot be pasted inside itself."}
+            target = unique_path(target)
+            if mode == "cut": shutil.move(source, target)
+            elif os.path.isdir(source): shutil.copytree(source, target)
+            else: shutil.copy2(source, target)
         return {"ok": True, "moved": mode == "cut"}
+    if op == "compress":
+        paths = [clean(value) for value in req.get("paths", [])]
+        if not paths: return {"ok": False, "error": "Select at least one item to compress."}
+        destination = unique_path(os.path.join(clean(req.get("destination")), "Archive.zip"))
+        with zipfile.ZipFile(destination, "w", zipfile.ZIP_DEFLATED) as archive:
+            for path in paths:
+                if not os.path.exists(path): continue
+                if os.path.isdir(path):
+                    for base, _, files in os.walk(path):
+                        for name in files: archive.write(os.path.join(base, name), os.path.relpath(os.path.join(base, name), os.path.dirname(path)))
+                else: archive.write(path, os.path.basename(path))
+        return {"ok": True, "archive": destination}
+    if op == "uncompress":
+        paths = [clean(value) for value in req.get("paths", [])]
+        extracted = 0
+        for path in paths:
+            if not os.path.isfile(path): continue
+            folder = unique_path(os.path.splitext(path)[0])
+            os.makedirs(folder, exist_ok=True)
+            if zipfile.is_zipfile(path):
+                with zipfile.ZipFile(path) as archive: archive.extractall(folder)
+            elif tarfile.is_tarfile(path):
+                with tarfile.open(path) as archive: archive.extractall(folder, filter="data")
+            else: continue
+            extracted += 1
+        return {"ok": extracted > 0, "error": "Select a ZIP or tar archive to uncompress." if extracted == 0 else ""}
     if op == "open":
         subprocess.Popen(["xdg-open", clean(req.get("path"))], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); return {"ok": True}
     return {"ok": False, "error": "Unknown operation"}

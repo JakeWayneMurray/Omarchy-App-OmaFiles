@@ -18,6 +18,9 @@ automatically follows the current theme.
 - New folder, rename, move to Trash, and open with the default application
 - Keyboard navigation: arrows, Enter, Backspace, `/` search, `Ctrl+L` location,
   `Ctrl+Shift+N` new folder, `Delete` trash, and `Escape` close dialogs
+- Multi-select with `Space`/`s`, Shift + arrows or Shift + `hjkl`, and `Escape`
+  to clear selection; `Ctrl+C`/`Ctrl+X`/`Ctrl+V` operate on all selected items
+- `C` compresses selected items to a ZIP archive and `U` uncompresses ZIP/tar archives
 
 ## Run from a checkout
 

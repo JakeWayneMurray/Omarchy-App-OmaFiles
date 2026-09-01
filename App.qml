@@ -20,13 +20,17 @@ FloatingWindow {
     property int viewMode: 0
     property var entries: []
     property var selected: null
+    property var selectedItems: []
+    property int selectionAnchor: -1
     property string previewText: "Select a file to preview it."
     property bool previewIsImage: false
     property string previewImageSource: ""
     property string notice: ""
     property string clipboardPath: ""
+    property var clipboardPaths: []
     property string clipboardMode: ""
     property string busyPath: ""
+    property var busyPaths: []
     property string sortKey: "name"
     property bool sortAscending: true
     property string helperPath: Qt.resolvedUrl("quatro_files.py").toString().replace("file://", "")
@@ -34,20 +38,47 @@ FloatingWindow {
     function send(payload) { helper.write(JSON.stringify(payload) + "\n") }
     function refresh() { send({op:"list", path:currentPath, hidden:showHidden, query:searchText, sort:sortKey, ascending:sortAscending}) }
     function select(item) { selected = item; previewIsImage = !!(item && item.image); previewImageSource = item && item.image ? "file://" + item.path : ""; previewText = item && item.image ? "" : "Select a file to preview it."; if (item) send({op:"preview", path:item.path}) }
+    function isChosen(path) { for (var i = 0; i < selectedItems.length; i++) if (selectedItems[i].path === path) return true; return false }
+    function isBusy(path) { for (var i = 0; i < busyPaths.length; i++) if (busyPaths[i] === path) return true; return false }
+    function selectionOrCurrent() { return selectedItems.length ? selectedItems : (selected ? [selected] : []) }
+    function clearSelection() { selectedItems = []; selectionAnchor = -1; notify("Selection cleared") }
+    function toggleCurrent() {
+        if (list.currentIndex < 0 || list.currentIndex >= entries.length) return
+        var item = entries[list.currentIndex], next = []
+        for (var i = 0; i < selectedItems.length; i++) if (selectedItems[i].path !== item.path) next.push(selectedItems[i])
+        if (next.length === selectedItems.length) next.push(item)
+        selectedItems = next; selectionAnchor = list.currentIndex; notify(selectedItems.length + " selected")
+    }
+    function moveBy(delta, extend) {
+        if (!entries.length) return
+        var nextIndex = Math.max(0, Math.min(entries.length - 1, list.currentIndex < 0 ? 0 : list.currentIndex + delta))
+        if (extend) {
+            if (selectionAnchor < 0) selectionAnchor = list.currentIndex < 0 ? 0 : list.currentIndex
+            var start = Math.min(selectionAnchor, nextIndex), end = Math.max(selectionAnchor, nextIndex), range = []
+            for (var i = start; i <= end; i++) range.push(entries[i])
+            selectedItems = range
+        }
+        list.currentIndex = nextIndex
+    }
     function enter(item) { if (item.directory) { currentPath = item.path; searchText = ""; selected = null; refresh() } else send({op:"open", path:item.path}) }
     function up() { var p = currentPath; if (p !== "/") { currentPath = p.substring(0, p.lastIndexOf("/")) || "/"; refresh() } }
     function notify(message) { notice = message; noticeTimer.restart() }
     function action(op, extra) { busyPath = selected ? selected.path : currentPath; send(Object.assign({op:op, path:selected ? selected.path : currentPath}, extra || {})) }
     function copySelected(mode) {
-        if (!selected) return
-        clipboardPath = selected.path; clipboardMode = mode
-        notify((mode === "cut" ? "Cut " : "Copied ") + selected.name)
+        var items = selectionOrCurrent()
+        if (!items.length) return
+        clipboardPath = items.length === 1 ? items[0].path : ""
+        clipboardPaths = items.map(function(item) { return item.path })
+        clipboardMode = mode
+        notify((mode === "cut" ? "Cut " : "Copied ") + items.length + " item" + (items.length === 1 ? "" : "s"))
     }
     function pasteClipboard() {
-        if (!clipboardPath) { notify("Nothing to paste"); return }
-        busyPath = clipboardPath
-        send({op:"paste", source:clipboardPath, destination:currentPath, mode:clipboardMode})
+        if (!clipboardPaths.length) { notify("Nothing to paste"); return }
+        busyPaths = clipboardPaths
+        send({op:"paste", sources:clipboardPaths, destination:currentPath, mode:clipboardMode})
     }
+    function compressSelected() { var items = selectionOrCurrent(); if (!items.length) return; busyPaths = items.map(function(item) { return item.path }); send({op:"compress", paths:busyPaths, destination:currentPath}) }
+    function uncompressSelected() { var items = selectionOrCurrent(); if (!items.length) return; busyPaths = items.map(function(item) { return item.path }); send({op:"uncompress", paths:busyPaths}) }
     function nextSort() {
         var keys = ["name", "size", "modified", "created"]
         var index = keys.indexOf(sortKey)
@@ -74,7 +105,7 @@ FloatingWindow {
     function handle(data) {
         if (data.items !== undefined) { entries = data.items; if (!data.ok) notify(data.error) }
         else if (data.text !== undefined) { previewText = data.text; previewIsImage = !!data.image; previewImageSource = data.imagePath ? "file://" + data.imagePath : previewImageSource }
-        else if (data.ok) { busyPath = ""; if (clipboardMode === "cut" && data.moved) { clipboardPath = ""; clipboardMode = "" }; notify("Done"); refresh() } else { busyPath = ""; notify(data.error || "Could not complete action") }
+        else if (data.ok) { busyPath = ""; busyPaths = []; if (clipboardMode === "cut" && data.moved) { clipboardPath = ""; clipboardPaths = []; clipboardMode = "" }; notify("Done"); refresh() } else { busyPath = ""; busyPaths = []; notify(data.error || "Could not complete action") }
     }
     Timer { id: noticeTimer; interval: 2600 }
     Timer { id: startupRefresh; interval: 250; repeat: false; running: true; onTriggered: refresh() }
@@ -88,7 +119,7 @@ FloatingWindow {
     Shortcut { sequence: "Ctrl+X"; enabled: !pathField.activeFocus && !searchField.activeFocus; onActivated: root.copySelected("cut") }
     Shortcut { sequence: "Ctrl+V"; enabled: !pathField.activeFocus && !searchField.activeFocus; onActivated: root.pasteClipboard() }
     Shortcut { sequence: "Delete"; onActivated: if (selected) confirmTrash.open() }
-    Shortcut { sequence: "Escape"; onActivated: if (searchField.activeFocus) { searchText = ""; searchField.clearFocus(); refresh() } }
+    Shortcut { sequence: "Escape"; onActivated: { if (selectedItems.length) root.clearSelection(); else if (searchField.activeFocus) { searchText = ""; searchField.clearFocus(); refresh() } } }
 
     ColumnLayout { anchors.fill: parent; anchors.margins: Style.space(20); spacing: Style.space(12)
         RowLayout { Layout.fillWidth: true; spacing: Style.space(12)
@@ -115,15 +146,20 @@ FloatingWindow {
                     Keys.onPressed: function(event) {
                         if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) { if (currentIndex >= 0) root.enter(root.entries[currentIndex]); event.accepted = true }
                         else if (event.key === Qt.Key_Backspace) { root.up(); event.accepted = true }
-                        else if (event.key === Qt.Key_H) { root.up(); event.accepted = true }
-                        else if (event.key === Qt.Key_L) { if (currentIndex >= 0) root.enter(root.entries[currentIndex]); event.accepted = true }
-                        else if (event.key === Qt.Key_Down || event.key === Qt.Key_J) { currentIndex = Math.min(count - 1, currentIndex + 1); event.accepted = true }
-                        else if (event.key === Qt.Key_Up || event.key === Qt.Key_K) { currentIndex = Math.max(0, currentIndex - 1); event.accepted = true }
+                        else if (event.key === Qt.Key_H) { if ((event.modifiers & Qt.ShiftModifier) !== 0) root.moveBy(-1, true); else root.up(); event.accepted = true }
+                        else if (event.key === Qt.Key_L) { if ((event.modifiers & Qt.ShiftModifier) !== 0) root.moveBy(1, true); else if (currentIndex >= 0) root.enter(root.entries[currentIndex]); event.accepted = true }
+                        else if (event.key === Qt.Key_Down || event.key === Qt.Key_J) { root.moveBy(1, (event.modifiers & Qt.ShiftModifier) !== 0); event.accepted = true }
+                        else if (event.key === Qt.Key_Up || event.key === Qt.Key_K) { root.moveBy(-1, (event.modifiers & Qt.ShiftModifier) !== 0); event.accepted = true }
+                        else if (event.key === Qt.Key_Right) { root.moveBy(1, (event.modifiers & Qt.ShiftModifier) !== 0); event.accepted = true }
+                        else if (event.key === Qt.Key_Left) { root.moveBy(-1, (event.modifiers & Qt.ShiftModifier) !== 0); event.accepted = true }
+                        else if (event.key === Qt.Key_Space || event.key === Qt.Key_S) { root.toggleCurrent(); event.accepted = true }
+                        else if (event.key === Qt.Key_C) { root.compressSelected(); event.accepted = true }
+                        else if (event.key === Qt.Key_U) { root.uncompressSelected(); event.accepted = true }
                         else if (event.key === Qt.Key_Delete && currentIndex >= 0) { root.select(root.entries[currentIndex]); confirmTrash.open(); event.accepted = true }
                     }
-                    delegate: Rectangle { required property var modelData; required property int index; width: list.width; height: root.viewMode === 2 ? Style.space(92) : Style.space(48); radius: Style.radius.small; color: root.selected && root.selected.path === modelData.path ? Qt.alpha(Color.accent, 0.18) : "transparent"; opacity: root.clipboardMode === "cut" && root.clipboardPath === modelData.path ? 0.5 : 1
+                    delegate: Rectangle { required property var modelData; required property int index; width: list.width; height: root.viewMode === 2 ? Style.space(92) : Style.space(48); radius: Style.radius.small; color: root.isChosen(modelData.path) ? Qt.alpha(Color.accent, 0.22) : (root.selected && root.selected.path === modelData.path ? Qt.alpha(Color.foreground, 0.08) : "transparent"); opacity: root.clipboardMode === "cut" && root.clipboardPaths.indexOf(modelData.path) >= 0 ? 0.5 : 1
                         Row { anchors.fill: parent; anchors.margins: Style.space(10); spacing: Style.space(12)
-                            Text { width: Style.space(28); text: root.busyPath === modelData.path ? "…" : (root.clipboardPath === modelData.path ? (root.clipboardMode === "cut" ? "✂" : "⧉") : (modelData.directory ? "□" : "·")); color: root.busyPath === modelData.path ? Color.accent : (modelData.directory ? Color.accent : Color.muted); font.pixelSize: Style.font.title; horizontalAlignment: Text.AlignHCenter }
+                            Text { width: Style.space(28); text: root.isBusy(modelData.path) ? "…" : (root.isChosen(modelData.path) ? "✓" : (root.clipboardPaths.indexOf(modelData.path) >= 0 ? (root.clipboardMode === "cut" ? "✂" : "⧉") : (modelData.directory ? "□" : "·"))); color: root.isBusy(modelData.path) || root.isChosen(modelData.path) ? Color.accent : (modelData.directory ? Color.accent : Color.muted); font.pixelSize: Style.font.title; horizontalAlignment: Text.AlignHCenter }
                             Column { width: parent.width - Style.space(210); anchors.verticalCenter: parent.verticalCenter; Text { text: modelData.name; color: Color.foreground; font.family: Style.font.family; font.pixelSize: Style.font.body; elide: Text.ElideRight } Text { text: modelData.directory ? "Folder" : (root.formatBytes(modelData.size) + " · modified " + root.formatDate(modelData.modified)); color: Color.muted; font.pixelSize: Style.font.caption; elide: Text.ElideRight } }
                             Text { anchors.verticalCenter: parent.verticalCenter; text: modelData.directory ? "" : "↗"; color: Color.muted }
                         }
@@ -148,7 +184,9 @@ FloatingWindow {
             }
         }
         RowLayout { Layout.fillWidth: true
-            Text { Layout.fillWidth: true; text: root.notice || (root.entries.length + " items · " + root.currentPath); color: root.notice ? Color.accent : Color.muted; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
+            Text { Layout.fillWidth: true; text: root.notice || (root.selectedItems.length ? root.selectedItems.length + " selected · " + root.currentPath : root.entries.length + " items · " + root.currentPath); color: root.notice || root.selectedItems.length ? Color.accent : Color.muted; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
+            Button { text: "C Compress"; enabled: root.selectionOrCurrent().length > 0; bordered: true; onClicked: root.compressSelected() }
+            Button { text: "U Uncompress"; enabled: root.selectionOrCurrent().length > 0; bordered: true; onClicked: root.uncompressSelected() }
             Button { text: "Sort: " + root.sortLabel() + (root.sortAscending ? " ↑" : " ↓"); bordered: true; onClicked: root.nextSort() }
             Button { text: "⇅"; bordered: true; onClicked: { root.sortAscending = !root.sortAscending; root.refresh() } }
             Button { text: "List"; bordered: root.viewMode === 0; onClicked: root.viewMode = 0 }
