@@ -108,7 +108,11 @@ FloatingWindow {
                             Column { width: parent.width - Style.space(150); anchors.verticalCenter: parent.verticalCenter; Text { text: modelData.name; color: Color.foreground; font.family: Style.font.family; font.pixelSize: Style.font.body; elide: Text.ElideRight } Text { text: modelData.directory ? "Folder" : (modelData.size + " bytes"); color: Color.muted; font.pixelSize: Style.font.caption } }
                             Text { anchors.verticalCenter: parent.verticalCenter; text: modelData.directory ? "" : "↗"; color: Color.muted }
                         }
-                        MouseArea { anchors.fill: parent; onClicked: { list.currentIndex = index; root.select(modelData) }; onDoubleClicked: root.enter(modelData) }
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: { list.currentIndex = index; root.select(modelData) }
+                            onDoubleClicked: root.enter(modelData)
+                        }
                     }
                 }
                 Text { anchors.centerIn: parent; visible: root.entries.length === 0; text: root.searchText ? "No matches" : "This folder is empty"; color: Color.muted; font.pixelSize: Style.font.body }
