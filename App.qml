@@ -31,7 +31,7 @@ FloatingWindow {
     property bool sortAscending: true
     property string helperPath: Qt.resolvedUrl("quatro_files.py").toString().replace("file://", "")
 
-    function send(payload) { helper.write(JSON.stringify(payload) + "\n"); helper.flush() }
+    function send(payload) { helper.write(JSON.stringify(payload) + "\n") }
     function refresh() { send({op:"list", path:currentPath, hidden:showHidden, query:searchText, sort:sortKey, ascending:sortAscending}) }
     function select(item) { selected = item; previewIsImage = !!(item && item.image); previewImageSource = item && item.image ? "file://" + item.path : ""; previewText = item && item.image ? "" : "Select a file to preview it."; if (item) send({op:"preview", path:item.path}) }
     function enter(item) { if (item.directory) { currentPath = item.path; searchText = ""; selected = null; refresh() } else send({op:"open", path:item.path}) }
