@@ -58,3 +58,31 @@ o.bind("ALT + E", "OmaFiles", "omafiles")
 Save that in `~/.config/hypr/bindings.lua`, then run `hyprctl reload`.
 
 `./run.sh` remains available for development checkouts.
+
+## Keybind configuration
+
+OmaFiles creates `~/.config/omafiles/config.json` on first launch. Edit the
+`keybinds` values there to change the in-app shortcuts, then restart OmaFiles.
+Supported names include `Space`, `Escape`, `Left`, `Right`, `Up`, `Down`, and
+modifier combinations such as `Ctrl+Shift+L`.
+
+The default configuration is:
+
+```json
+{
+  "keybinds": {
+    "parent": "h",
+    "open": "l",
+    "moveDown": "j",
+    "moveUp": "k",
+    "select": "Space",
+    "copy": "Ctrl+C",
+    "cut": "Ctrl+X",
+    "paste": "Ctrl+V",
+    "localSend": "Ctrl+Shift+L",
+    "compress": "C",
+    "uncompress": "U",
+    "clearSelection": "Escape"
+  }
+}
+```

@@ -6,6 +6,7 @@ arch=('any')
 url='https://github.com/JakeWayneMurray/Omarchy-App-OmaFiles'
 license=('MIT')
 depends=('quickshell' 'python' 'file' 'poppler')
+optdepends=('localsend: send selected files and folders over the local network')
 source=()
 sha256sums=()
 

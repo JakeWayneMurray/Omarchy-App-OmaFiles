@@ -2,12 +2,33 @@
 import hashlib, json, os, shutil, subprocess, sys, tempfile, tarfile, zipfile
 
 HOME = os.path.expanduser("~")
+CONFIG_FILE = os.path.join(os.environ.get("XDG_CONFIG_HOME", os.path.join(HOME, ".config")), "omafiles", "config.json")
+DEFAULT_KEYBINDS = {
+    "parent": "h", "open": "l", "moveDown": "j", "moveUp": "k",
+    "select": "Space", "copy": "Ctrl+C", "cut": "Ctrl+X", "paste": "Ctrl+V",
+    "localSend": "Ctrl+Shift+L", "compress": "C", "uncompress": "U", "clearSelection": "Escape"
+}
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg", ".avif", ".ico"}
 PDF_EXTENSIONS = {".pdf"}
 ARCHIVE_SUFFIXES = (".zip", ".tar", ".tar.gz", ".tgz", ".tar.bz2", ".tbz2", ".tar.xz", ".txz")
 
 def clean(path):
     return os.path.realpath(os.path.expanduser(path or HOME))
+
+def read_config():
+    try:
+        with open(CONFIG_FILE, encoding="utf-8") as config_file: value = json.load(config_file)
+        keybinds = value.get("keybinds", {}) if isinstance(value, dict) else {}
+    except (OSError, json.JSONDecodeError):
+        keybinds = {}
+    merged = dict(DEFAULT_KEYBINDS)
+    if isinstance(keybinds, dict):
+        for key in merged:
+            if isinstance(keybinds.get(key), str) and keybinds[key].strip(): merged[key] = keybinds[key].strip()
+    os.makedirs(os.path.dirname(CONFIG_FILE), exist_ok=True, mode=0o700)
+    if not os.path.exists(CONFIG_FILE):
+        with open(CONFIG_FILE, "w", encoding="utf-8") as config_file: json.dump({"keybinds": merged}, config_file, indent=2); config_file.write("\n")
+    return {"keybinds": merged, "path": CONFIG_FILE}
 
 def item(path):
     try:
@@ -76,6 +97,7 @@ def unique_path(path):
 
 def main(req):
     op = req.get("op")
+    if op == "config": return {"ok": True, "config": read_config()}
     if op == "list": return listing(req.get("path"), req.get("hidden", False), req.get("query", ""), req.get("sort", "name"), req.get("ascending", True))
     if op == "preview":
         path = clean(req.get("path"));
@@ -134,6 +156,14 @@ def main(req):
             else: continue
             extracted += 1
         return {"ok": extracted > 0, "error": "Select a ZIP or tar archive to uncompress." if extracted == 0 else ""}
+    if op == "localsend":
+        paths = [clean(value) for value in req.get("paths", []) if value and os.path.exists(clean(value))]
+        if not paths: return {"ok": False, "error": "Select a file or folder to send."}
+        try:
+            subprocess.Popen(["localsend", *paths], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return {"ok": True, "sent": len(paths)}
+        except FileNotFoundError:
+            return {"ok": False, "error": "LocalSend is not installed."}
     if op == "open":
         subprocess.Popen(["xdg-open", clean(req.get("path"))], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); return {"ok": True}
     return {"ok": False, "error": "Unknown operation"}

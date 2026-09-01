@@ -34,8 +34,27 @@ FloatingWindow {
     property string sortKey: "name"
     property bool sortAscending: true
     property string helperPath: Qt.resolvedUrl("quatro_files.py").toString().replace("file://", "")
+    property string keyParent: "h"
+    property string keyOpen: "l"
+    property string keyMoveDown: "j"
+    property string keyMoveUp: "k"
+    property string keySelect: "Space"
+    property string keyCopy: "Ctrl+C"
+    property string keyCut: "Ctrl+X"
+    property string keyPaste: "Ctrl+V"
+    property string keyLocalSend: "Ctrl+Shift+L"
+    property string keyCompress: "C"
+    property string keyUncompress: "U"
+    property string keyClearSelection: "Escape"
 
     function send(payload) { helper.write(JSON.stringify(payload) + "\n") }
+    function keyMatches(event, binding) {
+        var parts = String(binding || "").toUpperCase().split("+")
+        var key = parts.pop(), named = {"LEFT":Qt.Key_Left, "RIGHT":Qt.Key_Right, "UP":Qt.Key_Up, "DOWN":Qt.Key_Down, "SPACE":Qt.Key_Space, "ESCAPE":Qt.Key_Escape, "BACKSPACE":Qt.Key_Backspace, "RETURN":Qt.Key_Return, "ENTER":Qt.Key_Enter}
+        var wantsCtrl = parts.indexOf("CTRL") >= 0, wantsShift = parts.indexOf("SHIFT") >= 0, wantsAlt = parts.indexOf("ALT") >= 0
+        if (wantsCtrl !== ((event.modifiers & Qt.ControlModifier) !== 0) || wantsShift !== ((event.modifiers & Qt.ShiftModifier) !== 0) || wantsAlt !== ((event.modifiers & Qt.AltModifier) !== 0)) return false
+        return named[key] !== undefined ? event.key === named[key] : key.length === 1 && event.key === key.charCodeAt(0)
+    }
     function refresh() { send({op:"list", path:currentPath, hidden:showHidden, query:searchText, sort:sortKey, ascending:sortAscending}) }
     function select(item) { selected = item; previewIsImage = !!(item && item.image); previewImageSource = item && item.image ? "file://" + item.path : ""; previewText = item && item.image ? "" : "Select a file to preview it."; if (item) send({op:"preview", path:item.path}) }
     function isChosen(path) { for (var i = 0; i < selectedItems.length; i++) if (selectedItems[i].path === path) return true; return false }
@@ -79,6 +98,7 @@ FloatingWindow {
     }
     function compressSelected() { var items = selectionOrCurrent(); if (!items.length) return; busyPaths = items.map(function(item) { return item.path }); send({op:"compress", paths:busyPaths, destination:currentPath}) }
     function uncompressSelected() { var items = selectionOrCurrent(); if (!items.length) return; busyPaths = items.map(function(item) { return item.path }); send({op:"uncompress", paths:busyPaths}) }
+    function sendToLocalSend() { var items = selectionOrCurrent(); if (!items.length) { notify("Select a file or folder to send"); return }; busyPaths = items.map(function(item) { return item.path }); send({op:"localsend", paths:busyPaths}) }
     function activateCurrent() {
         if (list.currentIndex < 0 || list.currentIndex >= entries.length) return
         var item = entries[list.currentIndex]
@@ -108,24 +128,32 @@ FloatingWindow {
         stdinEnabled: true
         stdout: SplitParser { onRead: function(line) { try { root.handle(JSON.parse(line)) } catch (e) { root.notify(String(e)) } } }
     }
+    function applyConfig(data) {
+        var keys = data && data.keybinds ? data.keybinds : {}
+        keyParent = keys.parent || keyParent; keyOpen = keys.open || keyOpen; keyMoveDown = keys.moveDown || keyMoveDown; keyMoveUp = keys.moveUp || keyMoveUp
+        keySelect = keys.select || keySelect; keyCopy = keys.copy || keyCopy; keyCut = keys.cut || keyCut; keyPaste = keys.paste || keyPaste
+        keyLocalSend = keys.localSend || keyLocalSend; keyCompress = keys.compress || keyCompress; keyUncompress = keys.uncompress || keyUncompress; keyClearSelection = keys.clearSelection || keyClearSelection
+    }
     function handle(data) {
-        if (data.items !== undefined) { entries = data.items; if (!data.ok) notify(data.error) }
+        if (data.config !== undefined) { applyConfig(data.config); refresh() }
+        else if (data.items !== undefined) { entries = data.items; if (!data.ok) notify(data.error) }
         else if (data.text !== undefined) { previewText = data.text; previewIsImage = !!data.image; previewImageSource = data.imagePath ? "file://" + data.imagePath : previewImageSource }
         else if (data.ok) { busyPath = ""; busyPaths = []; if (clipboardMode === "cut" && data.moved) { clipboardPath = ""; clipboardPaths = []; clipboardMode = "" }; notify("Done"); refresh() } else { busyPath = ""; busyPaths = []; notify(data.error || "Could not complete action") }
     }
     Timer { id: noticeTimer; interval: 2600 }
     Timer { id: startupRefresh; interval: 250; repeat: false; running: true; onTriggered: refresh() }
-    Component.onCompleted: list.forceActiveFocus()
+    Component.onCompleted: { send({op:"config"}); list.forceActiveFocus() }
     onCurrentPathChanged: pathField.text = currentPath
     onShowHiddenChanged: refresh()
 
     Shortcut { sequence: "Ctrl+L"; onActivated: pathField.forceActiveFocus() }
     Shortcut { sequence: "Ctrl+Shift+N"; onActivated: newFolder.open() }
-    Shortcut { sequence: "Ctrl+C"; enabled: !pathField.activeFocus && !searchField.activeFocus; onActivated: root.copySelected("copy") }
-    Shortcut { sequence: "Ctrl+X"; enabled: !pathField.activeFocus && !searchField.activeFocus; onActivated: root.copySelected("cut") }
-    Shortcut { sequence: "Ctrl+V"; enabled: !pathField.activeFocus && !searchField.activeFocus; onActivated: root.pasteClipboard() }
+    Shortcut { sequence: root.keyCopy; enabled: !pathField.activeFocus && !searchField.activeFocus; onActivated: root.copySelected("copy") }
+    Shortcut { sequence: root.keyCut; enabled: !pathField.activeFocus && !searchField.activeFocus; onActivated: root.copySelected("cut") }
+    Shortcut { sequence: root.keyPaste; enabled: !pathField.activeFocus && !searchField.activeFocus; onActivated: root.pasteClipboard() }
+    Shortcut { sequence: root.keyLocalSend; enabled: !pathField.activeFocus && !searchField.activeFocus; onActivated: root.sendToLocalSend() }
     Shortcut { sequence: "Delete"; onActivated: if (selected) confirmTrash.open() }
-    Shortcut { sequence: "Escape"; onActivated: { if (selectedItems.length) root.clearSelection(); else if (searchField.activeFocus) { searchText = ""; searchField.clearFocus(); refresh() } } }
+    Shortcut { sequence: root.keyClearSelection; onActivated: { if (selectedItems.length) root.clearSelection(); else if (searchField.activeFocus) { searchText = ""; searchField.clearFocus(); refresh() } } }
 
     ColumnLayout { anchors.fill: parent; anchors.margins: Style.space(20); spacing: Style.space(12)
         RowLayout { Layout.fillWidth: true; spacing: Style.space(12)
@@ -151,16 +179,15 @@ FloatingWindow {
                     onCurrentIndexChanged: if (currentIndex >= 0 && currentIndex < root.entries.length) root.select(root.entries[currentIndex])
                     Keys.onPressed: function(event) {
                         if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) { if (currentIndex >= 0) root.enter(root.entries[currentIndex]); event.accepted = true }
-                        else if (event.key === Qt.Key_Backspace) { root.up(); event.accepted = true }
-                        else if (event.key === Qt.Key_H) { if ((event.modifiers & Qt.ShiftModifier) !== 0) root.moveBy(-1, true); else root.up(); event.accepted = true }
-                        else if (event.key === Qt.Key_L) { if ((event.modifiers & Qt.ShiftModifier) !== 0) root.moveBy(1, true); else root.activateCurrent(); event.accepted = true }
-                        else if (event.key === Qt.Key_Down || event.key === Qt.Key_J) { root.moveBy(1, (event.modifiers & Qt.ShiftModifier) !== 0); event.accepted = true }
-                        else if (event.key === Qt.Key_Up || event.key === Qt.Key_K) { root.moveBy(-1, (event.modifiers & Qt.ShiftModifier) !== 0); event.accepted = true }
+                        else if (root.keyMatches(event, root.keyParent) || event.key === Qt.Key_H || event.key === Qt.Key_Backspace) { if (event.key === Qt.Key_H && (event.modifiers & Qt.ShiftModifier) !== 0) root.moveBy(-1, true); else root.up(); event.accepted = true }
+                        else if (root.keyMatches(event, root.keyOpen) || event.key === Qt.Key_L) { if ((event.modifiers & Qt.ShiftModifier) !== 0) root.moveBy(1, true); else root.activateCurrent(); event.accepted = true }
+                        else if (root.keyMatches(event, root.keyMoveDown) || event.key === Qt.Key_Down) { root.moveBy(1, (event.modifiers & Qt.ShiftModifier) !== 0); event.accepted = true }
+                        else if (root.keyMatches(event, root.keyMoveUp) || event.key === Qt.Key_Up) { root.moveBy(-1, (event.modifiers & Qt.ShiftModifier) !== 0); event.accepted = true }
                         else if (event.key === Qt.Key_Right) { if ((event.modifiers & Qt.ShiftModifier) !== 0) root.moveBy(1, true); else if (currentIndex >= 0 && (root.entries[currentIndex].directory || root.entries[currentIndex].archive)) root.activateCurrent(); else root.moveBy(1, false); event.accepted = true }
                         else if (event.key === Qt.Key_Left) { root.moveBy(-1, (event.modifiers & Qt.ShiftModifier) !== 0); event.accepted = true }
-                        else if (event.key === Qt.Key_Space || event.key === Qt.Key_S) { root.toggleCurrent(); event.accepted = true }
-                        else if (event.key === Qt.Key_C) { root.compressSelected(); event.accepted = true }
-                        else if (event.key === Qt.Key_U) { root.uncompressSelected(); event.accepted = true }
+                        else if (root.keyMatches(event, root.keySelect) || event.key === Qt.Key_Space || event.key === Qt.Key_S) { root.toggleCurrent(); event.accepted = true }
+                        else if (root.keyMatches(event, root.keyCompress)) { root.compressSelected(); event.accepted = true }
+                        else if (root.keyMatches(event, root.keyUncompress)) { root.uncompressSelected(); event.accepted = true }
                         else if (event.key === Qt.Key_Delete && currentIndex >= 0) { root.select(root.entries[currentIndex]); confirmTrash.open(); event.accepted = true }
                     }
                     delegate: Rectangle { required property var modelData; required property int index; width: list.width; height: root.viewMode === 2 ? Style.space(92) : Style.space(48); radius: Style.radius.small; color: root.isChosen(modelData.path) ? Qt.alpha(Color.accent, 0.22) : (root.selected && root.selected.path === modelData.path ? Qt.alpha(Color.foreground, 0.08) : "transparent"); opacity: root.clipboardMode === "cut" && root.clipboardPaths.indexOf(modelData.path) >= 0 ? 0.5 : 1
