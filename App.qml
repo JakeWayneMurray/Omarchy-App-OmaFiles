@@ -34,6 +34,7 @@ FloatingWindow {
     property string sortKey: "name"
     property bool sortAscending: true
     property string helperPath: Qt.resolvedUrl("quatro_files.py").toString().replace("file://", "")
+    readonly property string themeStatePath: (Quickshell.env("HOME") || "") + "/.local/state/omarchy/current"
     property string keyParent: "h"
     property string keyOpen: "l"
     property string keyMoveDown: "j"
@@ -50,6 +51,32 @@ FloatingWindow {
     property string keyDelete: "d"
     property string keyNewFolder: "Ctrl+Shift+N"
     property string keyClearSelection: "Escape"
+
+    function reloadThemeFiles() {
+        themeColorsFile.reload()
+        themeShellFile.reload()
+    }
+
+    property FileView themeNameFile: FileView {
+        path: root.themeStatePath + "/theme.name"
+        watchChanges: true
+        printErrors: false
+        onLoaded: root.reloadThemeFiles()
+        onFileChanged: reload()
+    }
+    property FileView themeColorsFile: FileView {
+        path: root.themeStatePath + "/theme/colors.toml"
+        watchChanges: false
+        printErrors: false
+        onLoaded: Color.loadColors(text())
+    }
+    property FileView themeShellFile: FileView {
+        path: root.themeStatePath + "/theme/shell.toml"
+        watchChanges: false
+        printErrors: false
+        onLoaded: Color.loadShell(text())
+        onLoadFailed: Color.loadShell("")
+    }
 
     function send(payload) { helper.write(JSON.stringify(payload) + "\n") }
     function keyMatches(event, binding) {
