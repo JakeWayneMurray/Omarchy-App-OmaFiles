@@ -6,7 +6,7 @@ CONFIG_FILE = os.path.join(os.environ.get("XDG_CONFIG_HOME", os.path.join(HOME, 
 DEFAULT_KEYBINDS = {
     "parent": "h", "open": "l", "moveDown": "j", "moveUp": "k",
     "select": "Space", "copy": "Ctrl+C", "cut": "Ctrl+X", "paste": "Ctrl+V",
-    "localSend": "Ctrl+Shift+L", "compress": "C", "uncompress": "U", "rename": "r", "quickPath": "t", "delete": "d", "clearSelection": "Escape"
+    "localSend": "Ctrl+Shift+L", "compress": "C", "uncompress": "U", "rename": "r", "quickPath": "t", "delete": "d", "newFolder": "Ctrl+Shift+N", "clearSelection": "Escape"
 }
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg", ".avif", ".ico"}
 PDF_EXTENSIONS = {".pdf"}

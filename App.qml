@@ -48,6 +48,7 @@ FloatingWindow {
     property string keyRename: "r"
     property string keyQuickPath: "t"
     property string keyDelete: "d"
+    property string keyNewFolder: "Ctrl+Shift+N"
     property string keyClearSelection: "Escape"
 
     function send(payload) { helper.write(JSON.stringify(payload) + "\n") }
@@ -140,7 +141,7 @@ FloatingWindow {
         var keys = data && data.keybinds ? data.keybinds : {}
         keyParent = keys.parent || keyParent; keyOpen = keys.open || keyOpen; keyMoveDown = keys.moveDown || keyMoveDown; keyMoveUp = keys.moveUp || keyMoveUp
         keySelect = keys.select || keySelect; keyCopy = keys.copy || keyCopy; keyCut = keys.cut || keyCut; keyPaste = keys.paste || keyPaste
-        keyLocalSend = keys.localSend || keyLocalSend; keyCompress = keys.compress || keyCompress; keyUncompress = keys.uncompress || keyUncompress; keyRename = keys.rename || keyRename; keyQuickPath = keys.quickPath || keyQuickPath; keyDelete = keys.delete || keyDelete; keyClearSelection = keys.clearSelection || keyClearSelection
+        keyLocalSend = keys.localSend || keyLocalSend; keyCompress = keys.compress || keyCompress; keyUncompress = keys.uncompress || keyUncompress; keyRename = keys.rename || keyRename; keyQuickPath = keys.quickPath || keyQuickPath; keyDelete = keys.delete || keyDelete; keyNewFolder = keys.newFolder || keyNewFolder; keyClearSelection = keys.clearSelection || keyClearSelection
     }
     function handle(data) {
         if (data.config !== undefined) { applyConfig(data.config); refresh() }
@@ -156,7 +157,7 @@ FloatingWindow {
     onShowHiddenChanged: refresh()
 
     Shortcut { sequence: "Ctrl+L"; onActivated: pathField.forceActiveFocus() }
-    Shortcut { sequence: "Ctrl+Shift+N"; onActivated: newFolder.open() }
+    Shortcut { sequence: root.keyNewFolder; enabled: !pathField.activeFocus && !searchField.activeFocus; onActivated: newFolder.open() }
     Shortcut { sequence: root.keyCopy; enabled: !pathField.activeFocus && !searchField.activeFocus; onActivated: root.copySelected("copy") }
     Shortcut { sequence: root.keyCut; enabled: !pathField.activeFocus && !searchField.activeFocus; onActivated: root.copySelected("cut") }
     Shortcut { sequence: root.keyPaste; enabled: !pathField.activeFocus && !searchField.activeFocus; onActivated: root.pasteClipboard() }
@@ -249,6 +250,7 @@ FloatingWindow {
     Dialog { id: newFolder; title: "New folder"; modal: true; focus: true; anchors.centerIn: Overlay.overlay; width: Style.space(420); padding: Style.space(16); Keys.onPressed: function(event) { if (event.key === Qt.Key_Escape) { newFolder.reject(); event.accepted = true } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) { newFolder.accept(); event.accepted = true } } background: Rectangle { color: Color.background; border.color: Qt.alpha(Color.accent, 0.55); border.width: 1; radius: Style.space(8) } header: Text { leftPadding: Style.space(16); rightPadding: Style.space(16); topPadding: Style.space(14); text: newFolder.title; color: Color.foreground; font.family: Style.font.family; font.pixelSize: Style.font.body; font.bold: true }
         TextField { id: folderName; width: Style.space(320); placeholderText: "Folder name"; onAccepted: newFolder.accept() }
         footer: Row { width: parent.width; spacing: Style.space(8); layoutDirection: Qt.RightToLeft; Button { text: "Create"; bordered: true; onClicked: newFolder.accept() } Button { text: "Cancel"; bordered: true; onClicked: newFolder.reject() } }
+        onOpened: Qt.callLater(function() { folderName.forceActiveFocus(); folderName.selectAll() })
         onAccepted: { if (folderName.text.trim()) root.action("mkdir", {path:root.currentPath, name:folderName.text.trim()}); folderName.text = "" }
     }
     Dialog { id: renameDialog; title: "Rename"; modal: true; focus: true; anchors.centerIn: Overlay.overlay; width: Style.space(420); padding: Style.space(16); Keys.onPressed: function(event) { if (event.key === Qt.Key_Escape) { renameDialog.reject(); event.accepted = true } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) { renameDialog.accept(); event.accepted = true } } background: Rectangle { color: Color.background; border.color: Qt.alpha(Color.accent, 0.55); border.width: 1; radius: Style.space(8) } header: Text { leftPadding: Style.space(16); rightPadding: Style.space(16); topPadding: Style.space(14); text: renameDialog.title; color: Color.foreground; font.family: Style.font.family; font.pixelSize: Style.font.body; font.bold: true }
@@ -258,13 +260,12 @@ FloatingWindow {
     }
     Dialog { id: confirmTrash; title: "Move to Trash?"; modal: true; focus: true; anchors.centerIn: Overlay.overlay; width: Style.space(420); padding: Style.space(20); background: Rectangle { color: Color.background; border.color: Qt.alpha(Color.accent, 0.55); border.width: 1; radius: Style.space(8) } header: Text { leftPadding: Style.space(20); rightPadding: Style.space(20); topPadding: Style.space(16); bottomPadding: Style.space(4); text: confirmTrash.title; color: Color.foreground; font.family: Style.font.family; font.pixelSize: Style.font.body; font.bold: true }
         Text { width: parent.width; height: Style.space(34); verticalAlignment: Text.AlignVCenter; text: root.selectionOrCurrent().length > 1 ? "Move " + root.selectionOrCurrent().length + " items to Trash?" : (root.selected ? "Move “" + root.selected.name + "” to Trash?" : "Move this item to Trash?"); color: Color.foreground; wrapMode: Text.WordWrap }
-        footer: DialogButtonBox { id: confirmTrashButtons; width: parent.width; height: Style.space(48); padding: Style.space(8); alignment: Qt.AlignRight; standardButtons: DialogButtonBox.NoButton
-            Button { id: confirmTrashAccept; text: "Move to Trash"; focus: true; DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole; bordered: true }
-            Button { text: "Cancel"; DialogButtonBox.buttonRole: DialogButtonBox.RejectRole; bordered: true }
+        footer: DialogButtonBox { id: confirmTrashButtons; width: parent.width; height: Style.space(48); padding: Style.space(8); alignment: Qt.AlignRight; standardButtons: DialogButtonBox.Ok | DialogButtonBox.Cancel
             onAccepted: confirmTrash.accept()
             onRejected: confirmTrash.reject()
         }
-        onOpened: Qt.callLater(function() { confirmTrashAccept.forceActiveFocus() })
+        Component.onCompleted: { confirmTrashButtons.standardButton(DialogButtonBox.Ok).text = "Move to Trash"; confirmTrashButtons.standardButton(DialogButtonBox.Cancel).text = "Cancel" }
+        onOpened: Qt.callLater(function() { confirmTrashButtons.standardButton(DialogButtonBox.Ok).forceActiveFocus() })
         onAccepted: root.trashSelected()
     }
     Dialog { id: compressDialog; title: "Compress selection"; modal: true; focus: true; anchors.centerIn: Overlay.overlay; width: Style.space(420); padding: Style.space(16); Keys.onPressed: function(event) { if (event.key === Qt.Key_Escape) { compressDialog.reject(); event.accepted = true } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) { compressDialog.accept(); event.accepted = true } } background: Rectangle { color: Color.background; border.color: Qt.alpha(Color.accent, 0.55); border.width: 1; radius: Style.space(8) } header: Text { leftPadding: Style.space(16); rightPadding: Style.space(16); topPadding: Style.space(14); text: compressDialog.title; color: Color.foreground; font.family: Style.font.family; font.pixelSize: Style.font.body; font.bold: true }

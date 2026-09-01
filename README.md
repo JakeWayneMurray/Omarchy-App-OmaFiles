@@ -24,6 +24,7 @@ automatically follows the current theme.
 - `l` or `→` on a ZIP/tar archive extracts it directly; on folders they open the folder
 - `r` renames the current item, `t` focuses and selects the location field, and `C` asks for an archive filename (default `archive.zip`)
 - `Delete` or `d` opens the Trash confirmation
+- `Ctrl+Shift+N` opens the named New Folder dialog
 - Right-click any item for the full action menu
 
 ## Run from a checkout
@@ -88,6 +89,7 @@ The default configuration is:
     "rename": "r",
     "quickPath": "t",
     "delete": "d",
+    "newFolder": "Ctrl+Shift+N",
     "clearSelection": "Escape"
   }
 }
