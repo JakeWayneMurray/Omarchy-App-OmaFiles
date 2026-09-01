@@ -58,6 +58,7 @@ FloatingWindow {
         return named[key] !== undefined ? event.key === named[key] : key.length === 1 && event.key === key.charCodeAt(0)
     }
     function refresh() { send({op:"list", path:currentPath, hidden:showHidden, query:searchText, sort:sortKey, ascending:sortAscending}) }
+    function completePath() { send({op:"complete", text:pathField.text}) }
     function select(item) { selected = item; previewIsImage = !!(item && item.image); previewImageSource = item && item.image ? "file://" + item.path : ""; previewText = item && item.image ? "" : "Select a file to preview it."; if (item) send({op:"preview", path:item.path}) }
     function isChosen(path) { for (var i = 0; i < selectedItems.length; i++) if (selectedItems[i].path === path) return true; return false }
     function isBusy(path) { for (var i = 0; i < busyPaths.length; i++) if (busyPaths[i] === path) return true; return false }
@@ -141,6 +142,7 @@ FloatingWindow {
     }
     function handle(data) {
         if (data.config !== undefined) { applyConfig(data.config); refresh() }
+        else if (data.completions !== undefined) { if (data.completions.length === 1) { pathField.text = data.completions[0]; pathField.cursorPosition = pathField.text.length } else if (data.common && data.common.length > pathField.text.length) { pathField.text = data.common; pathField.cursorPosition = pathField.text.length } if (data.completions.length > 1) notify(data.completions.length + " matches") }
         else if (data.items !== undefined) { entries = data.items; if (!data.ok) notify(data.error) }
         else if (data.text !== undefined) { previewText = data.text; previewIsImage = !!data.image; previewImageSource = data.imagePath ? "file://" + data.imagePath : previewImageSource }
         else if (data.ok) { busyPath = ""; busyPaths = []; if (clipboardMode === "cut" && data.moved) { clipboardPath = ""; clipboardPaths = []; clipboardMode = "" }; notify("Done"); refresh() } else { busyPath = ""; busyPaths = []; notify(data.error || "Could not complete action") }
@@ -159,7 +161,7 @@ FloatingWindow {
     Shortcut { sequence: root.keyLocalSend; enabled: !pathField.activeFocus && !searchField.activeFocus; onActivated: root.sendToLocalSend() }
     Shortcut { sequence: root.keyQuickPath; enabled: !pathField.activeFocus && !searchField.activeFocus; onActivated: { pathField.forceActiveFocus(); pathField.selectAll() } }
     Shortcut { sequence: "Delete"; onActivated: if (selected) confirmTrash.open() }
-    Shortcut { sequence: root.keyClearSelection; onActivated: { if (selectedItems.length) root.clearSelection(); else if (searchField.activeFocus) { searchText = ""; searchField.clearFocus(); refresh() } } }
+    Shortcut { sequence: root.keyClearSelection; onActivated: { if (pathField.activeFocus || searchField.activeFocus) { if (searchField.activeFocus) { searchText = ""; searchField.clear() }; pathField.clearFocus(); searchField.clearFocus(); list.forceActiveFocus() } else if (selectedItems.length) root.clearSelection() } }
 
     ColumnLayout { anchors.fill: parent; anchors.margins: Style.space(20); spacing: Style.space(12)
         RowLayout { Layout.fillWidth: true; spacing: Style.space(12)
@@ -173,7 +175,7 @@ FloatingWindow {
         }
         RowLayout { Layout.fillWidth: true; spacing: Style.space(8)
             Button { text: "‹"; bordered: true; onClicked: up() }
-            TextField { id: pathField; Layout.fillWidth: true; text: root.currentPath; placeholderText: "Location"; onAccepted: { root.currentPath = text; root.refresh() } }
+            TextField { id: pathField; Layout.fillWidth: true; text: root.currentPath; placeholderText: "Location"; onAccepted: { root.currentPath = text; root.refresh(); list.forceActiveFocus() } Keys.onPressed: function(event) { if (event.key === Qt.Key_Tab) { root.completePath(); event.accepted = true } } }
             TextField { id: searchField; Layout.preferredWidth: Style.space(220); placeholderText: "⌕  Search this folder"; onTextChanged: { root.searchText = text; root.refresh() } }
             Button { text: root.showHidden ? "Hidden on" : "Hidden"; bordered: true; onClicked: root.showHidden = !root.showHidden }
             Button { text: "＋ New folder"; bordered: true; onClicked: newFolder.open() }

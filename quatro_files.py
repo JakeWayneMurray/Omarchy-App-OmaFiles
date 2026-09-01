@@ -88,6 +88,20 @@ def pdf_preview(path):
         text = "PDF preview tools are unavailable: " + str(error)
     return {"ok": True, "text": text or "This PDF has no selectable text.", "image": bool(image_path), "imagePath": image_path}
 
+def complete_path(value):
+    raw = os.path.expanduser(str(value or ""))
+    if raw.endswith(os.sep): parent, prefix = raw.rstrip(os.sep) or os.sep, ""
+    else: parent, prefix = os.path.dirname(raw) or ".", os.path.basename(raw)
+    parent = clean(parent)
+    try: names = sorted(name for name in os.listdir(parent) if name.startswith(prefix))
+    except OSError: names = []
+    matches = []
+    for name in names:
+        path = os.path.join(parent, name)
+        matches.append(path + os.sep if os.path.isdir(path) else path)
+    common = os.path.commonprefix(matches) if matches else raw
+    return {"ok": True, "completions": matches, "common": common}
+
 def unique_path(path):
     if not os.path.exists(path): return path
     stem, ext = os.path.splitext(path)
@@ -98,6 +112,7 @@ def unique_path(path):
 def main(req):
     op = req.get("op")
     if op == "config": return {"ok": True, "config": read_config()}
+    if op == "complete": return complete_path(req.get("text", ""))
     if op == "list": return listing(req.get("path"), req.get("hidden", False), req.get("query", ""), req.get("sort", "name"), req.get("ascending", True))
     if op == "preview":
         path = clean(req.get("path"));
