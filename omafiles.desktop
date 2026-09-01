@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=OmaFiles
+Comment=Fast, theme-aware file manager for Omarchy
+Exec=omafiles
+Icon=system-file-manager
+Terminal=false
+Type=Application
+Categories=System;FileManager;
+Keywords=files;folders;nautilus;explorer;
