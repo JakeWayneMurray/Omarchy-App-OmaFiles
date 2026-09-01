@@ -23,6 +23,7 @@ automatically follows the current theme.
 - `C` compresses selected items to a ZIP archive and `U` uncompresses ZIP/tar archives
 - `l` or `→` on a ZIP/tar archive extracts it directly; on folders they open the folder
 - `r` renames the current item, `t` focuses and selects the location field, and `C` asks for an archive filename (default `archive.zip`)
+- `Delete` or `d` opens the Trash confirmation
 - Right-click any item for the full action menu
 
 ## Run from a checkout
@@ -86,6 +87,7 @@ The default configuration is:
     "uncompress": "U",
     "rename": "r",
     "quickPath": "t",
+    "delete": "d",
     "clearSelection": "Escape"
   }
 }

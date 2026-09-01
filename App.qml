@@ -47,6 +47,7 @@ FloatingWindow {
     property string keyUncompress: "U"
     property string keyRename: "r"
     property string keyQuickPath: "t"
+    property string keyDelete: "d"
     property string keyClearSelection: "Escape"
 
     function send(payload) { helper.write(JSON.stringify(payload) + "\n") }
@@ -139,7 +140,7 @@ FloatingWindow {
         var keys = data && data.keybinds ? data.keybinds : {}
         keyParent = keys.parent || keyParent; keyOpen = keys.open || keyOpen; keyMoveDown = keys.moveDown || keyMoveDown; keyMoveUp = keys.moveUp || keyMoveUp
         keySelect = keys.select || keySelect; keyCopy = keys.copy || keyCopy; keyCut = keys.cut || keyCut; keyPaste = keys.paste || keyPaste
-        keyLocalSend = keys.localSend || keyLocalSend; keyCompress = keys.compress || keyCompress; keyUncompress = keys.uncompress || keyUncompress; keyRename = keys.rename || keyRename; keyQuickPath = keys.quickPath || keyQuickPath; keyClearSelection = keys.clearSelection || keyClearSelection
+        keyLocalSend = keys.localSend || keyLocalSend; keyCompress = keys.compress || keyCompress; keyUncompress = keys.uncompress || keyUncompress; keyRename = keys.rename || keyRename; keyQuickPath = keys.quickPath || keyQuickPath; keyDelete = keys.delete || keyDelete; keyClearSelection = keys.clearSelection || keyClearSelection
     }
     function handle(data) {
         if (data.config !== undefined) { applyConfig(data.config); refresh() }
@@ -161,8 +162,11 @@ FloatingWindow {
     Shortcut { sequence: root.keyPaste; enabled: !pathField.activeFocus && !searchField.activeFocus; onActivated: root.pasteClipboard() }
     Shortcut { sequence: root.keyLocalSend; enabled: !pathField.activeFocus && !searchField.activeFocus; onActivated: root.sendToLocalSend() }
     Shortcut { sequence: root.keyQuickPath; enabled: !pathField.activeFocus && !searchField.activeFocus; onActivated: { pathField.forceActiveFocus(); pathField.selectAll() } }
-    Shortcut { sequence: "Delete"; onActivated: if (root.selectionOrCurrent().length) confirmTrash.open() }
-    Shortcut { sequence: root.keyClearSelection; onActivated: { if (pathField.activeFocus || searchField.activeFocus) { if (searchField.activeFocus) { searchText = ""; searchField.clear() }; pathField.clearFocus(); searchField.clearFocus(); list.forceActiveFocus() } else if (selectedItems.length) root.clearSelection() } }
+    Shortcut { sequence: "Delete"; enabled: !confirmTrash.visible; onActivated: if (root.selectionOrCurrent().length) confirmTrash.open() }
+    Shortcut { sequence: root.keyDelete; enabled: !confirmTrash.visible && !pathField.activeFocus && !searchField.activeFocus; onActivated: if (root.selectionOrCurrent().length) confirmTrash.open() }
+    Shortcut { sequence: "Return"; enabled: confirmTrash.visible; onActivated: confirmTrash.accept() }
+    Shortcut { sequence: "Escape"; enabled: confirmTrash.visible; onActivated: confirmTrash.reject() }
+    Shortcut { sequence: root.keyClearSelection; enabled: !confirmTrash.visible; onActivated: { if (pathField.activeFocus || searchField.activeFocus) { if (searchField.activeFocus) { searchText = ""; searchField.clear() }; pathField.clearFocus(); searchField.clearFocus(); list.forceActiveFocus() } else if (selectedItems.length) root.clearSelection() } }
 
     ColumnLayout { anchors.fill: parent; anchors.margins: Style.space(20); spacing: Style.space(12)
         RowLayout { Layout.fillWidth: true; spacing: Style.space(12)
@@ -198,7 +202,7 @@ FloatingWindow {
                         else if (root.keyMatches(event, root.keyCompress)) { root.compressSelected(); event.accepted = true }
                         else if (root.keyMatches(event, root.keyUncompress)) { root.uncompressSelected(); event.accepted = true }
                         else if (root.keyMatches(event, root.keyRename)) { root.renameSelected(); event.accepted = true }
-                        else if (event.key === Qt.Key_Delete && currentIndex >= 0) { root.select(root.entries[currentIndex]); confirmTrash.open(); event.accepted = true }
+                        else if ((event.key === Qt.Key_Delete || root.keyMatches(event, root.keyDelete)) && currentIndex >= 0) { root.select(root.entries[currentIndex]); confirmTrash.open(); event.accepted = true }
                     }
                     delegate: Rectangle { required property var modelData; required property int index; width: list.width; height: root.viewMode === 2 ? Style.space(92) : Style.space(48); radius: Style.space(6); color: root.isChosen(modelData.path) ? Qt.alpha(Color.accent, 0.22) : (root.selected && root.selected.path === modelData.path ? Qt.alpha(Color.foreground, 0.08) : "transparent"); opacity: root.clipboardMode === "cut" && root.clipboardPaths.indexOf(modelData.path) >= 0 ? 0.5 : 1
                         Row { anchors.fill: parent; anchors.margins: Style.space(10); spacing: Style.space(12)
@@ -254,7 +258,7 @@ FloatingWindow {
     }
     Dialog { id: confirmTrash; title: "Move to Trash?"; modal: true; focus: true; anchors.centerIn: Overlay.overlay; width: Style.space(420); padding: Style.space(20); Keys.onPressed: function(event) { if (event.key === Qt.Key_Escape) { confirmTrash.reject(); event.accepted = true } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) { confirmTrash.accept(); event.accepted = true } } background: Rectangle { color: Color.background; border.color: Qt.alpha(Color.accent, 0.55); border.width: 1; radius: Style.space(8) } header: Text { leftPadding: Style.space(20); rightPadding: Style.space(20); topPadding: Style.space(16); bottomPadding: Style.space(4); text: confirmTrash.title; color: Color.foreground; font.family: Style.font.family; font.pixelSize: Style.font.body; font.bold: true }
         Text { width: parent.width; height: Style.space(34); verticalAlignment: Text.AlignVCenter; text: root.selectionOrCurrent().length > 1 ? "Move " + root.selectionOrCurrent().length + " items to Trash?" : (root.selected ? "Move “" + root.selected.name + "” to Trash?" : "Move this item to Trash?"); color: Color.foreground; wrapMode: Text.WordWrap }
-        footer: Row { width: parent.width; height: Style.space(38); spacing: Style.space(8); layoutDirection: Qt.RightToLeft; Button { id: confirmTrashAccept; text: "Move to Trash"; focus: true; bordered: true; onClicked: confirmTrash.accept() } Button { text: "Cancel"; bordered: true; onClicked: confirmTrash.reject() } }
+        footer: RowLayout { width: parent.width; height: Style.space(38); spacing: Style.space(8); Item { Layout.fillWidth: true } Button { id: confirmTrashAccept; text: "Move to Trash"; focus: true; bordered: true; onClicked: confirmTrash.accept() } Button { text: "Cancel"; bordered: true; onClicked: confirmTrash.reject() } Item { width: Style.space(8) } }
         onOpened: confirmTrashAccept.forceActiveFocus()
         onAccepted: root.trashSelected()
     }
