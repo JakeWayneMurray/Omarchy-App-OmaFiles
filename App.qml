@@ -264,9 +264,12 @@ FloatingWindow {
             onAccepted: confirmTrash.accept()
             onRejected: confirmTrash.reject()
         }
-        Component.onCompleted: { confirmTrashButtons.standardButton(DialogButtonBox.Ok).text = "Move to Trash"; confirmTrashButtons.standardButton(DialogButtonBox.Cancel).text = "Cancel" }
+        Component.onCompleted: { var ok = confirmTrashButtons.standardButton(DialogButtonBox.Ok); var cancel = confirmTrashButtons.standardButton(DialogButtonBox.Cancel); ok.text = "Move to Trash"; cancel.text = "Cancel"; ok.font.family = Style.font.family; cancel.font.family = Style.font.family; ok.background = themedDialogButtonBackground.createObject(ok); cancel.background = themedDialogButtonBackground.createObject(cancel) }
         onOpened: Qt.callLater(function() { confirmTrashButtons.standardButton(DialogButtonBox.Ok).forceActiveFocus() })
         onAccepted: root.trashSelected()
+    }
+    Component { id: themedDialogButtonBackground
+        Rectangle { implicitWidth: Style.space(112); implicitHeight: Style.space(36); radius: Style.space(18); color: parent && parent.down ? Qt.alpha(Color.accent, 0.28) : (parent && parent.hovered ? Qt.alpha(Color.accent, 0.12) : "transparent"); border.color: Color.accent; border.width: 1 }
     }
     Dialog { id: compressDialog; title: "Compress selection"; modal: true; focus: true; anchors.centerIn: Overlay.overlay; width: Style.space(420); padding: Style.space(16); Keys.onPressed: function(event) { if (event.key === Qt.Key_Escape) { compressDialog.reject(); event.accepted = true } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) { compressDialog.accept(); event.accepted = true } } background: Rectangle { color: Color.background; border.color: Qt.alpha(Color.accent, 0.55); border.width: 1; radius: Style.space(8) } header: Text { leftPadding: Style.space(16); rightPadding: Style.space(16); topPadding: Style.space(14); text: compressDialog.title; color: Color.foreground; font.family: Style.font.family; font.pixelSize: Style.font.body; font.bold: true }
         TextField { id: archiveName; width: Style.space(320); text: "archive.zip"; placeholderText: "Archive filename"; onAccepted: compressDialog.accept() }
