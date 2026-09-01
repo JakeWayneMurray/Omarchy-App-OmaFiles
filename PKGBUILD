@@ -5,7 +5,7 @@ pkgdesc='Omarchy-styled keyboard-first file manager'
 arch=('any')
 url='https://github.com/JakeWayneMurray/Omarchy-App-OmaFiles'
 license=('MIT')
-depends=('quickshell' 'python')
+depends=('quickshell' 'python' 'file' 'poppler')
 source=()
 sha256sums=()
 

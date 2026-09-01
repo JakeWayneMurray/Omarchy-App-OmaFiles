@@ -22,6 +22,7 @@ FloatingWindow {
     property var selected: null
     property string previewText: "Select a file to preview it."
     property bool previewIsImage: false
+    property string previewImageSource: ""
     property string notice: ""
     property string clipboardPath: ""
     property string clipboardMode: ""
@@ -32,7 +33,7 @@ FloatingWindow {
 
     function send(payload) { helper.write(JSON.stringify(payload) + "\n"); helper.flush() }
     function refresh() { send({op:"list", path:currentPath, hidden:showHidden, query:searchText, sort:sortKey, ascending:sortAscending}) }
-    function select(item) { selected = item; previewIsImage = !!(item && item.image); previewText = item && item.image ? "" : "Select a file to preview it."; if (item) send({op:"preview", path:item.path}) }
+    function select(item) { selected = item; previewIsImage = !!(item && item.image); previewImageSource = item && item.image ? "file://" + item.path : ""; previewText = item && item.image ? "" : "Select a file to preview it."; if (item) send({op:"preview", path:item.path}) }
     function enter(item) { if (item.directory) { currentPath = item.path; searchText = ""; selected = null; refresh() } else send({op:"open", path:item.path}) }
     function up() { var p = currentPath; if (p !== "/") { currentPath = p.substring(0, p.lastIndexOf("/")) || "/"; refresh() } }
     function notify(message) { notice = message; noticeTimer.restart() }
@@ -72,7 +73,7 @@ FloatingWindow {
     }
     function handle(data) {
         if (data.items !== undefined) { entries = data.items; if (!data.ok) notify(data.error) }
-        else if (data.text !== undefined) { previewText = data.text; previewIsImage = !!data.image }
+        else if (data.text !== undefined) { previewText = data.text; previewIsImage = !!data.image; previewImageSource = data.imagePath ? "file://" + data.imagePath : previewImageSource }
         else if (data.ok) { busyPath = ""; if (clipboardMode === "cut" && data.moved) { clipboardPath = ""; clipboardMode = "" }; notify("Done"); refresh() } else { busyPath = ""; notify(data.error || "Could not complete action") }
     }
     Timer { id: noticeTimer; interval: 2600 }
@@ -140,7 +141,7 @@ FloatingWindow {
                     Text { text: root.selected ? root.selected.name : "Preview"; color: Color.foreground; font.pixelSize: Style.font.body; font.bold: true; elide: Text.ElideRight; width: parent.width }
                     Text { visible: !!root.selected; text: root.selected ? (root.selected.directory ? "Folder" : root.formatBytes(root.selected.size)) + "\nModified  " + root.formatDate(root.selected.modified) + "\nCreated   " + root.formatDate(root.selected.created) : ""; color: Color.muted; font.pixelSize: Style.font.caption; lineHeight: 1.15 }
                     Rectangle { width: parent.width; height: 1; color: Qt.alpha(Color.foreground, 0.12) }
-                    Image { visible: root.previewIsImage && !!root.selected; width: parent.width; height: parent.height - Style.space(88); source: root.selected ? "file://" + root.selected.path : ""; fillMode: Image.PreserveAspectFit; asynchronous: true; cache: false }
+                    Image { visible: root.previewIsImage && !!root.selected; width: parent.width; height: parent.height - Style.space(88); source: root.previewImageSource; fillMode: Image.PreserveAspectFit; asynchronous: true; cache: false }
                     ScrollView { visible: !root.previewIsImage; width: parent.width; height: parent.height - Style.space(88); Text { width: parent.width; text: root.previewText; color: Color.muted; font.family: "monospace"; font.pixelSize: Style.font.caption; wrapMode: Text.Wrap; textFormat: Text.PlainText } }
                     Row { spacing: Style.space(8); Button { text: "Open"; enabled: !!root.selected; bordered: true; onClicked: root.enter(root.selected) } Button { text: "Rename"; enabled: !!root.selected; bordered: true; onClicked: renameDialog.open() } Button { text: "Trash"; enabled: !!root.selected; bordered: true; onClicked: confirmTrash.open() } }
                 }
